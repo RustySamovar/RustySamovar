@@ -1,0 +1,101 @@
+use std::io;
+use std::io::Read;
+use std::fs;
+use std::net::SocketAddr;
+use std::net::UdpSocket;
+use std::io::Write;
+use std::time::SystemTime;
+use std::convert::TryInto;
+
+extern crate kcp;
+extern crate mhycrypt;
+
+use kcp::Kcp;
+
+pub struct ClientConnection {
+    conv: u32,
+    token: u32,
+    ikcp: Kcp<Source>,
+    established_time: SystemTime,
+    key: [u8; 0x1000],
+}
+
+pub struct Source
+{
+    address: Option<SocketAddr>,
+    socket: UdpSocket,
+}
+
+impl Write for Source {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        return self.socket.send_to(data, self.address.expect("Unknown destination address!"));
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ClientConnection {
+    pub fn new(socket: UdpSocket, conv: u32, token: u32) -> ClientConnection {
+        let s = Source {
+            address: None,
+            socket: socket,
+        };
+
+        return ClientConnection {
+            conv: conv,
+            token: token,
+            ikcp: Kcp::new(conv, token, s),
+            established_time: SystemTime::now(),
+            key: ClientConnection::read_key("master").try_into().expect("Incorrect master key"),
+        };
+    }
+
+    pub fn update_source(&mut self, new_source: SocketAddr) {
+        self.ikcp.output.0.address = Some(new_source);
+    }
+
+    pub fn process_udp_packet(&mut self, data: &[u8]) -> Vec<Vec<u8>> {
+        let mut packets: Vec<Vec<u8>> = Vec::new();
+        self.ikcp.input(data).unwrap();
+        self.ikcp.update(self.elapsed_time_millis()).unwrap();
+        self.ikcp.flush().unwrap();
+        loop {
+            let mut buf = [0u8; 0x20000];
+            match self.ikcp.recv(&mut buf) {
+                Err(_) => break,
+                Ok(size) => {
+                    mhycrypt::mhy_xor(&mut buf[..size], &self.key);
+                    let data = buf[..size].to_owned();
+                    packets.push(data);
+                },
+            }
+        }
+        self.ikcp.update(self.elapsed_time_millis()).unwrap();
+        return packets;
+    }
+
+    pub fn update_key(&mut self, seed: u64) {
+        mhycrypt::mhy_generate_key(&mut self.key, seed, false);
+    }
+
+    fn read_key(key_name: &str) -> Vec<u8> {
+        let filename = format!("{}/{}.key", "keys", key_name);
+        let mut f = fs::File::open(&filename).expect("no file found");
+        let metadata = fs::metadata(&filename).expect("unable to read metadata");
+        let mut buffer = vec![0; metadata.len() as usize];
+        f.read(&mut buffer).expect("buffer overflow");
+        return buffer;
+    }
+
+    fn elapsed_time_millis(&self) -> u32 {
+        return SystemTime::now().duration_since(self.established_time).unwrap().as_millis().try_into().unwrap();
+    }
+
+    pub fn send_udp_packet(&mut self, data: &[u8]) {
+        let mut buf = data.to_owned();
+        mhycrypt::mhy_xor(&mut buf, &self.key);
+        self.ikcp.send(&buf).expect("Failed to send data!");
+    }
+}
