@@ -18,6 +18,7 @@ pub struct ClientConnection {
     ikcp: Kcp<Source>,
     established_time: SystemTime,
     key: [u8; 0x1000],
+    pending_seed: Option<u64>,
 }
 
 pub struct Source
@@ -49,6 +50,7 @@ impl ClientConnection {
             ikcp: Kcp::new(conv, token, s),
             established_time: SystemTime::now(),
             key: ClientConnection::read_key("master").try_into().expect("Incorrect master key"),
+            pending_seed: None,
         };
     }
 
@@ -57,6 +59,14 @@ impl ClientConnection {
     }
 
     pub fn process_udp_packet(&mut self, data: &[u8]) -> Vec<Vec<u8>> {
+        match self.pending_seed {
+            None => {},
+            Some(seed) => {
+                mhycrypt::mhy_generate_key(&mut self.key, seed, false);
+                self.pending_seed = None;
+            },
+        }
+
         let mut packets: Vec<Vec<u8>> = Vec::new();
         self.ikcp.input(data).unwrap();
         self.ikcp.update(self.elapsed_time_millis()).unwrap();
@@ -77,12 +87,12 @@ impl ClientConnection {
     }
 
     pub fn update_key(&mut self, seed: u64) {
-        mhycrypt::mhy_generate_key(&mut self.key, seed, false);
+        self.pending_seed = Some(seed);
     }
 
     fn read_key(key_name: &str) -> Vec<u8> {
-        let filename = format!("{}/{}.key", "keys", key_name);
-        let mut f = fs::File::open(&filename).expect("no file found");
+        let filename = format!("./{}/{}.key", "keys", key_name);
+        let mut f = fs::File::open(&filename).expect(&format!("File '{}' not found", filename));
         let metadata = fs::metadata(&filename).expect("unable to read metadata");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("buffer overflow");
@@ -97,5 +107,7 @@ impl ClientConnection {
         let mut buf = data.to_owned();
         mhycrypt::mhy_xor(&mut buf, &self.key);
         self.ikcp.send(&buf).expect("Failed to send data!");
+        self.ikcp.flush().unwrap();
+        self.ikcp.update(self.elapsed_time_millis()).unwrap();
     }
 }

@@ -7,12 +7,21 @@ use std::thread;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock, Mutex};
 
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
+use num_derive::ToPrimitive;
+use num_traits::ToPrimitive;
+
 use crate::utils::HandshakePacket;
 use crate::utils::DataPacket;
 use crate::server::ClientConnection;
+use crate::server::GameServer;
 use crate::server::IpcMessage;
 
+use crate::proto;
 use crate::proto::PacketHead;
+use crate::proto::GetPlayerTokenRsp;
+use crate::proto::get_player_token_rsp;
 
 use prost::Message;
 
@@ -74,17 +83,27 @@ impl NetworkServer {
             loop {
                 let IpcMessage(conv, packet_id, metadata, data) = packets_to_send_rx.recv().unwrap();
 
-                let data = DataPacket::new(packet_id, metadata, data);
+                let data_packet = DataPacket::new(packet_id.clone() as u16, metadata, data.clone());
 
                 match clients.lock().unwrap().get_mut(&conv) {
                     Some(client) => {
-                        client.send_udp_packet(&data.to_bytes());
+                        let bytes = data_packet.to_bytes();
+                        client.send_udp_packet(&bytes);
 
-                        // TODO: here, if encryption key was changed, do so
+                        if packet_id == proto::PacketId::GetPlayerTokenRsp {
+                            // TODO: a bit hacky!
+                            let token_rsp = GetPlayerTokenRsp::decode(&mut Cursor::new(data)).unwrap();
+                            client.update_key(token_rsp.secret_key_seed);
+                        }
                     },
                     None => panic!("Unknown client conv: {}", conv),
                 };
             }
+        });
+
+        let game_thread = thread::spawn(move || {
+            let mut gs = GameServer::new(packets_to_process_rx, packets_to_send_tx);
+            gs.run();
         });
 
         let mut buffer = [0u8; 65536];
@@ -126,7 +145,7 @@ impl NetworkServer {
                 }
             },
             Err(e) => {
-                print!("Error constructing handshake: {:#?}", e);
+                //print!("Error constructing handshake: {:#?}", e);
                 let conv = kcp::get_conv(packet_bytes);
 
                 let packets = match self.clients.lock().unwrap().get_mut(&conv) {
@@ -156,13 +175,21 @@ impl NetworkServer {
             Err(e) => panic!("Malformed packet header: {:#?}!", e),
         };
 
-        print!("Got packet with header: {:#?} and ID {}\n", head, data.packet_id);
+        let packet_id: proto::PacketId = match FromPrimitive::from_u16(data.packet_id) {
+            Some(packet_id) => packet_id,
+            None => {
+                println!("Skipping unknown packet ID {}", data.packet_id);
+                return;
+            }
+        };
+
+        println!("Got packet {:?}", packet_id);
 
         let sender = match &self.packets_to_process_tx {
             Some(sender) => sender,
             None => panic!("Processing queue wasn't set up!"),
         };
 
-        sender.send( IpcMessage(conv, data.packet_id, data.metadata, data.data) ).unwrap();
+        sender.send( IpcMessage(conv, packet_id, data.metadata, data.data) ).unwrap();
     }
 }

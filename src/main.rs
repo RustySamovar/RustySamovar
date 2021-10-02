@@ -1,8 +1,12 @@
+#[macro_use]
+extern crate num_derive;
+
 mod server;
 mod utils;
 
 pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/proto.rs"));
+    include!(concat!("..", "/gen", "/packet_id.rs"));
 }
 
 use server::NetworkServer;

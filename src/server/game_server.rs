@@ -3,24 +3,8 @@ use std::thread;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
+use crate::server::GameWorld;
 use crate::server::IpcMessage;
-
-pub struct GameWorld {
-    packets_to_send_tx: mpsc::Sender<IpcMessage>,
-}
-
-impl GameWorld {
-    pub fn new(packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameWorld {
-        let gm = GameWorld {
-            packets_to_send_tx: packets_to_send_tx,
-        };
-
-        return gm;
-    }
-
-    pub fn process_packet(&mut self, conv: u32, packet_id: u16, metadata: Vec<u8>, data: Vec<u8>) {
-    }
-}
 
 pub struct GameServer {
     packets_to_process_rx: mpsc::Receiver<IpcMessage>,

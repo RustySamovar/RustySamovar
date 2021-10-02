@@ -10,6 +10,8 @@ kcp = { path = "../kcp" }
 mhycrypt = { path = "../mhycrypt" }
 prost = "0.8"
 bytes = "1.1.0"
+num-traits = "0.2"
+num-derive = "0.3"
 
 [build-dependencies]
 prost-build = { version = "0.8.0" }
