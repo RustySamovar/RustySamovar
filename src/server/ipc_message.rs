@@ -8,6 +8,7 @@ pub struct IpcMessage(pub u32, pub proto::PacketId, pub Vec<u8>, pub Vec<u8>);
 impl IpcMessage {
     pub fn new_from_proto<M: prost::Message>(conv: u32, packet_id: proto::PacketId, metadata: &proto::PacketHead, data: &M) -> IpcMessage {
         println!("Replying with {:?}", packet_id);
+        println!("Data: {:?}", data);
 
         let mut buf: Vec<u8> = vec!();
 

@@ -7,6 +7,8 @@ mod utils;
 pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/proto.rs"));
     include!(concat!("..", "/gen", "/packet_id.rs"));
+    include!(concat!("..", "/gen", "/player_prop.rs"));
+    include!(concat!("..", "/gen", "/open_state.rs"));
 }
 
 use server::NetworkServer;

@@ -42,6 +42,9 @@ fn main() -> Result<()> {
         "PingRsp",
         "PlayerDataNotify",
 
+        "EnterWorldAreaReq",
+        "EnterWorldAreaRsp",
+
     ];
 
     let protos: Vec<String> = protos.iter().map(|&x| format!("{}/{}.proto", proto_dir, x)).collect();
