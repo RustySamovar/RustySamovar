@@ -1,3 +1,5 @@
+extern crate pretty_env_logger;
+
 #[macro_use]
 extern crate num_derive;
 
@@ -6,19 +8,15 @@ use std::thread;
 mod server;
 mod utils;
 
-pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/proto.rs"));
-    include!(concat!("..", "/gen", "/packet_id.rs"));
-    include!(concat!("..", "/gen", "/player_prop.rs"));
-    include!(concat!("..", "/gen", "/open_state.rs"));
-}
-
 use server::NetworkServer;
 use server::DispatchServer;
 
 fn main() {
+    pretty_env_logger::init();
+
     thread::spawn(|| {
-        let mut ds = DispatchServer::new("127.0.0.1", 9696);
+        //let mut ds = DispatchServer::new("127.0.0.1", 9696);
+        let mut ds = DispatchServer::new();
         ds.run();
     });
 

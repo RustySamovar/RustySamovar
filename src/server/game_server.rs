@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use crate::server::GameWorld;
+use packet_processor::PacketProcessor;
 use crate::server::IpcMessage;
 
 pub struct GameServer {
@@ -27,15 +28,15 @@ impl GameServer {
         let world_processor = thread::spawn(move || {
             println!("Starting world processor");
             // TODO: Load worlds!
-            loop {
-            }
+            //loop {
+            //}
         });
 
         loop {
-            let IpcMessage(conv, packet_id, metadata, data) = self.packets_to_process_rx.recv().unwrap();
+            let IpcMessage(user_id, packet_id, metadata, data) = self.packets_to_process_rx.recv().unwrap();
             
-            // TODO: each conv will have a distinct world!
-            let world = match self.worlds.entry(conv) {
+            // TODO: each user_id will have a distinct world!
+            let world = match self.worlds.entry(user_id) {
                 Occupied(world) => world.into_mut(),
                 Vacant(entry) => {
                     let mut world = GameWorld::new(self.packets_to_send_tx.clone());
@@ -43,7 +44,7 @@ impl GameServer {
                 },
             };
 
-            world.process_packet(conv, packet_id, metadata, data);
+            world.process(user_id, packet_id, metadata, data);
         }
     }
 }

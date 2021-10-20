@@ -16,14 +16,17 @@ use crate::utils::HandshakePacket;
 use crate::utils::DataPacket;
 use crate::server::ClientConnection;
 use crate::server::GameServer;
+use crate::server::AuthManager;
+
 use crate::server::IpcMessage;
 
-use crate::proto;
-use crate::proto::PacketHead;
-use crate::proto::GetPlayerTokenRsp;
-use crate::proto::get_player_token_rsp;
+use proto::PacketHead;
+use proto::GetPlayerTokenRsp;
+use proto::get_player_token_rsp;
 
 use prost::Message;
+
+use packet_processor::PacketProcessor;
 
 extern crate kcp;
 
@@ -31,6 +34,7 @@ pub struct NetworkServer {
     socket: UdpSocket,
     clients: Arc<Mutex<HashMap<u32,ClientConnection>>>,
     packets_to_process_tx: Option<mpsc::Sender<IpcMessage>>,
+    packets_to_send_tx: Option<mpsc::Sender<IpcMessage>>,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +63,7 @@ impl NetworkServer {
             },
             clients: Arc::new(Mutex::new(HashMap::new())),
             packets_to_process_tx: None,
+            packets_to_send_tx: None,
         };
 
         print!("Connection established\n");
@@ -76,12 +81,20 @@ impl NetworkServer {
         let (packets_to_send_tx, packets_to_send_rx) = mpsc::channel();
 
         self.packets_to_process_tx = Some(packets_to_process_tx);
+        self.packets_to_send_tx = Some(packets_to_send_tx.clone()); // TODO: hack!
 
         let clients = self.clients.clone();
+        let mut auth_manager = Arc::new(Mutex::new(AuthManager::new(packets_to_send_tx.clone())));
+        let am = auth_manager.clone();
 
         let packet_relaying_thread = thread::spawn(move || {
             loop {
-                let IpcMessage(conv, packet_id, metadata, data) = packets_to_send_rx.recv().unwrap();
+                let IpcMessage(user_id, packet_id, metadata, data) = packets_to_send_rx.recv().unwrap();
+
+                let conv = match packet_id {
+                    proto::PacketId::GetPlayerTokenRsp => user_id, // Mapping is not performed on those
+                    _ => am.lock().unwrap().resolve_uid(user_id).unwrap_or_else(|| panic!("Unknown user ID {}!", user_id)),
+                };
 
                 let data_packet = DataPacket::new(packet_id.clone() as u16, metadata, data.clone());
 
@@ -110,7 +123,7 @@ impl NetworkServer {
 
         loop {
             match self.socket.recv_from(&mut buffer) {
-                Ok( (bytes_number, source_address) ) => self.process_udp_packet(source_address, &buffer[..bytes_number]),
+                Ok( (bytes_number, source_address) ) => self.process_udp_packet(source_address, &buffer[..bytes_number], &mut auth_manager),
                 Err(e) => panic!("Failed to receive data: {}", e),
             }
         }
@@ -120,16 +133,16 @@ impl NetworkServer {
         return Ok(0);
     }
 
-    fn process_udp_packet(&mut self, source_address: SocketAddr, packet_bytes: &[u8]) {
-        print!("Received packet! Len = {}\n", packet_bytes.len());
+    fn process_udp_packet(&mut self, source_address: SocketAddr, packet_bytes: &[u8], auth_manager: &mut Arc<Mutex<AuthManager>>) {
+        //print!("Received packet! Len = {}\n", packet_bytes.len());
 
         let hs_packet = HandshakePacket::new(packet_bytes);
 
         match hs_packet {
             Ok(hs_packet) => {
-                print!("Received handshake packet: {:#?}\n", hs_packet);
+                //print!("Received handshake packet: {:#?}\n", hs_packet);
                 if hs_packet.is_connect() {
-                    print!("Sending reply to CONNECT\n");
+                    //print!("Sending reply to CONNECT\n");
                     // TODO: assign conv and token!
                     let conv = 0x96969696u32;
                     let token = 0x42424242u32;
@@ -158,13 +171,13 @@ impl NetworkServer {
                 };
 
                 for packet in packets.iter() {
-                    self.process_game_packet(conv, packet);
+                    self.process_game_packet(conv, packet, auth_manager);
                 }
             },
         };
     }
 
-    fn process_game_packet(&mut self, conv: u32, packet: &[u8]) {
+    fn process_game_packet(&mut self, conv: u32, packet: &[u8], auth_manager: &mut Arc<Mutex<AuthManager>>) {
         let data = match DataPacket::new_from_bytes(packet) {
             Ok(data) => data,
             Err(e) => panic!("Malformed data packet: {:#?}!", e),
@@ -183,13 +196,46 @@ impl NetworkServer {
             }
         };
 
-        println!("Got packet {:?}", packet_id);
+        let user_id = match packet_id {
+            proto::PacketId::GetPlayerTokenReq => {
+                auth_manager.lock().unwrap().process(conv, packet_id, data.metadata, data.data);
+                return;
+            },
+            _ => match auth_manager.lock().unwrap().resolve_conv(conv) {
+                None => {
+                    println!("Unknown user with conv {}! Skipping", conv);
+                    return;
+                },
+                Some(user_id) => user_id,
+            },
+        };
 
+        if packet_id == proto::PacketId::UnionCmdNotify {
+            let union = proto::UnionCmdNotify::decode(&mut Cursor::new(&data.data)).unwrap();
+            for u_cmd in union.cmd_list.into_iter() {
+                self.send_packet_to_process(user_id, u_cmd.message_id as u16, &data.metadata, &u_cmd.body);
+            }
+        } else {
+            self.send_packet_to_process(user_id, data.packet_id, &data.metadata, &data.data);
+        }
+    }
+
+    fn send_packet_to_process(&mut self, user_id: u32, packet_id: u16, metadata: &[u8], data: &[u8])
+    {
         let sender = match &self.packets_to_process_tx {
             Some(sender) => sender,
             None => panic!("Processing queue wasn't set up!"),
         };
+                
+        let packet_id: proto::PacketId = match FromPrimitive::from_u16(packet_id) {
+            Some(packet_id) => packet_id,
+            None => {
+                println!("Skipping unknown packet ID {}", packet_id);
+                return;
+            },
+        };
 
-        sender.send( IpcMessage(conv, packet_id, data.metadata, data.data) ).unwrap();
+        println!("Got packet {:?}", packet_id);
+        sender.send( IpcMessage(user_id, packet_id, metadata.to_vec(), data.to_vec()) ).unwrap();
     }
 }

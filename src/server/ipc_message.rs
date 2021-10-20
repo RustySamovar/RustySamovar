@@ -1,12 +1,9 @@
-use crate::proto;
-
-use prost;
 use prost::Message;
 
 pub struct IpcMessage(pub u32, pub proto::PacketId, pub Vec<u8>, pub Vec<u8>);
 
 impl IpcMessage {
-    pub fn new_from_proto<M: prost::Message>(conv: u32, packet_id: proto::PacketId, metadata: &proto::PacketHead, data: &M) -> IpcMessage {
+    pub fn new_from_proto<M: prost::Message>(user_id: u32, packet_id: proto::PacketId, metadata: &proto::PacketHead, data: &M) -> IpcMessage {
         println!("Replying with {:?}", packet_id);
         println!("Data: {:?}", data);
 
@@ -19,7 +16,7 @@ impl IpcMessage {
         metadata.encode(&mut metabuf).unwrap();
 
         return IpcMessage(
-            conv,
+            user_id,
             packet_id,
             metabuf,
             buf

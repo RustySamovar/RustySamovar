@@ -76,6 +76,12 @@ impl ClientConnection {
             match self.ikcp.recv(&mut buf) {
                 Err(_) => break,
                 Ok(size) => {
+                    #[cfg(feature = "raw_packet_dump")]
+                    {
+                        use pretty_hex::*;
+                        let cfg = HexConfig {title: true, width: 16, group: 0, ascii: true, ..HexConfig::default() };
+                        println!("{:?}", buf[..size].to_vec().hex_conf(cfg));
+                    }
                     mhycrypt::mhy_xor(&mut buf[..size], &self.key);
                     let data = buf[..size].to_owned();
                     packets.push(data);
