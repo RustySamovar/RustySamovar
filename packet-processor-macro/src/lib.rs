@@ -86,6 +86,10 @@ pub fn packet_processor(args: TokenStream, input: TokenStream) -> TokenStream {
                 return self.packet_callbacks.keys().cloned().collect();
             }
 
+            fn is_supported(&self, packet_id: &proto::PacketId) -> bool {
+                return self.packet_callbacks.contains_key(&packet_id);
+            }
+
             fn process(&mut self, user_id: u32, packet_id: proto::PacketId, metadata: Vec<u8>, data: Vec<u8>) {
                 let callback = self.packet_callbacks.get(&packet_id);
                 let metadata = proto::PacketHead::decode(&mut std::io::Cursor::new(metadata)).unwrap();

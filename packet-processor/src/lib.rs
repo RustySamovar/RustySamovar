@@ -1,6 +1,7 @@
 pub trait PacketProcessor {
     fn register(&mut self);
     fn supported(&self) -> Vec<proto::PacketId>;
+    fn is_supported(&self, packet_id: &proto::PacketId) -> bool;
     fn process(&mut self, user_id: u32, packet_id: proto::PacketId, metadata: Vec<u8>, data: Vec<u8>);
 }
 
@@ -30,3 +31,23 @@ macro_rules! register_callback {
     };
 }
 
+#[macro_export]
+macro_rules! build_and_send {
+    ($self:ident, $user_id: ident, $metadata:ident, $id:ident { $($i:ident : $e:expr,)* }) => {{
+        $self.packets_to_send_tx.send(
+            IpcMessage::new_from_proto(
+                $user_id,
+                proto::PacketId::$id,
+                $metadata,
+                &proto::$id { $($i: $e,)* ..proto::$id::default() }
+            )
+        ).unwrap();
+    }};
+}
+
+#[macro_export]
+macro_rules! build {
+    ($id:ident { $($i:ident : $e:expr,)* }) => {{
+        proto::$id { $($i: $e,)* ..proto::$id::default() }
+    }};
+}

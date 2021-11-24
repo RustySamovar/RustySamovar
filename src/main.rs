@@ -7,9 +7,13 @@ use std::thread;
 
 mod server;
 mod utils;
+mod dbmanager;
+mod jsonmanager;
 
 use server::NetworkServer;
 use server::DispatchServer;
+use dbmanager::DatabaseManager;
+use jsonmanager::JsonManager;
 
 fn main() {
     pretty_env_logger::init();

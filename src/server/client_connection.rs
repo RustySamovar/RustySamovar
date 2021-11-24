@@ -7,6 +7,8 @@ use std::io::Write;
 use std::time::SystemTime;
 use std::convert::TryInto;
 
+use crate::utils::TimeManager;
+
 extern crate kcp;
 extern crate mhycrypt;
 
@@ -106,7 +108,7 @@ impl ClientConnection {
     }
 
     fn elapsed_time_millis(&self) -> u32 {
-        return SystemTime::now().duration_since(self.established_time).unwrap().as_millis().try_into().unwrap();
+        return TimeManager::duration_since(self.established_time).try_into().unwrap();
     }
 
     pub fn send_udp_packet(&mut self, data: &[u8]) {
