@@ -17,7 +17,7 @@ pub struct AuthManager {
 }
 
 impl AuthManager {
-    const SPOOFED_PLAYER_UID: u32 = 1337;
+    pub const SPOOFED_PLAYER_UID: u32 = 1337;
 
     pub fn new(packets_to_send_tx: mpsc::Sender<IpcMessage>) -> AuthManager {
         let mut am = AuthManager {
