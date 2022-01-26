@@ -17,19 +17,23 @@ pub struct GameServer {
     packets_to_send_tx: mpsc::Sender<IpcMessage>,
     worlds: HashMap<u32, GameWorld>,
     login_manager: LoginManager,
+    database_manager: Arc<DatabaseManager>,
+    json_manager: Arc<JsonManager>,
 }
 
 impl GameServer {
     pub fn new(packets_to_process_rx: mpsc::Receiver<IpcMessage>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameServer {
-        let db = DatabaseManager::new("sqlite://./database.db3");
-        let jm = JsonManager::new("./json");
-        let lm = LoginManager::new(Arc::new(db), Arc::new(jm), packets_to_send_tx.clone());
+        let db = Arc::new(DatabaseManager::new("sqlite://./database.db3"));
+        let jm = Arc::new(JsonManager::new("./json"));
+        let lm = LoginManager::new(db.clone(), jm.clone(), packets_to_send_tx.clone());
 
         let gs = GameServer {
             packets_to_process_rx: packets_to_process_rx,
             packets_to_send_tx: packets_to_send_tx,
             worlds: HashMap::new(),
             login_manager: lm,
+            database_manager: db.clone(),
+            json_manager: jm.clone(),
         };
 
         return gs;
@@ -53,7 +57,7 @@ impl GameServer {
                 let world = match self.worlds.entry(user_id) {
                     Occupied(world) => world.into_mut(),
                     Vacant(entry) => {
-                        let mut world = GameWorld::new(self.packets_to_send_tx.clone());
+                        let mut world = GameWorld::new(self.database_manager.clone(),self.json_manager.clone(), self.packets_to_send_tx.clone());
                         entry.insert(world)
                     },
                 };
