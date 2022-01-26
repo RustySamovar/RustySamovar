@@ -15,3 +15,12 @@ Cargo.lock
 # Vim temp files
 .*.swp
 .*.swo
+
+# Sigh...
+/.idea/
+
+# Local database
+database.db3*
+
+# JSON files
+/json/
