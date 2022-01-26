@@ -9,7 +9,7 @@ pub struct Model {
     pub uid: u32,
     pub character_id: u32,
     pub avatar_type: u8,
-    pub guid: u64,
+    pub guid: i64,
     pub born_time: u32,
 }
 

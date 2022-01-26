@@ -1,6 +1,7 @@
 // Database Manager
 
 use sea_orm::entity::prelude::*;
+use chrono::NaiveDate;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "player_info")]
@@ -8,10 +9,8 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub uid: u32,
     pub nick_name: String,
-    pub level: u8,
     pub signature: String,
-    pub birthday: u32,
-    pub world_level: u8,
+    pub birthday: NaiveDate,
     pub namecard_id: u32,
     pub finish_achievement_num: u32,
     pub tower_floor_index: u8,

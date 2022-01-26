@@ -3,21 +3,27 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "avatar_team_info")]
+#[sea_orm(table_name = "material_info")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub uid: u32,
-    pub team_id: u8,
     pub guid: i64,
+    pub count: u32,
+    pub has_delete_config: bool,
+    // TODO: Add MaterialDeleteInfo!
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
+    Item,
 }
 
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
+            Self::Item => Entity::belongs_to(super::item_info::Entity)
+                .from(Column::Guid)
+                .to(super::item_info::Column::Guid)
+                .into(),
             _ => panic!("Unknown relation type!"),
         }
     }

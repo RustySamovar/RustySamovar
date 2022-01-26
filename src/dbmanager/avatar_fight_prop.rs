@@ -3,12 +3,12 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "avatar_team_info")]
+#[sea_orm(table_name = "avatar_fight_prop")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub uid: u32,
-    pub team_id: u8,
     pub guid: i64,
+    pub prop_id: u32,
+    pub value: f32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
