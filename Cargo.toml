@@ -9,6 +9,7 @@ edition = "2018"
 kcp = { path = "../kcp" }
 mhycrypt = { path = "../mhycrypt" }
 proto = { path = "../proto" }
+lua_serde = { path = "../lua_serde" }
 packet-processor-macro = { path = "packet-processor-macro" }
 packet-processor = { path = "packet-processor" }
 

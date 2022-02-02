@@ -9,11 +9,13 @@ mod server;
 mod utils;
 mod dbmanager;
 mod jsonmanager;
+mod luamanager;
 
 use server::NetworkServer;
 use server::DispatchServer;
 use dbmanager::DatabaseManager;
 use jsonmanager::JsonManager;
+use luamanager::LuaManager;
 
 fn main() {
     pretty_env_logger::init();

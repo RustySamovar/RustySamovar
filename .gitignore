@@ -22,5 +22,5 @@ Cargo.lock
 # Local database
 database.db3*
 
-# JSON files
-/json/
+# Data files
+/data/

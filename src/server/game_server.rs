@@ -9,6 +9,7 @@ use crate::server::IpcMessage;
 
 use crate::DatabaseManager;
 use crate::JsonManager;
+use crate::LuaManager;
 use crate::server::LoginManager;
 use std::sync::Arc;
 
@@ -24,8 +25,9 @@ pub struct GameServer {
 impl GameServer {
     pub fn new(packets_to_process_rx: mpsc::Receiver<IpcMessage>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameServer {
         let db = Arc::new(DatabaseManager::new("sqlite://./database.db3"));
-        let jm = Arc::new(JsonManager::new("./json"));
+        let jm = Arc::new(JsonManager::new("./data/json"));
         let lm = LoginManager::new(db.clone(), jm.clone(), packets_to_send_tx.clone());
+        let lum = Arc::new(LuaManager::new("./data/lua"));
 
         let gs = GameServer {
             packets_to_process_rx: packets_to_process_rx,
