@@ -192,7 +192,7 @@ impl DispatchServer {
                 .route("/ajax.php", web::get().to(DispatchServer::geetest_ajax_get))
                 .route("/ajax.php", web::post().to(DispatchServer::geetest_ajax_post))
                 // Logging
-                .route("/log/sdk/upload", web::post().to(DispatchServer::redirect_log_to_ccp))
+                .route("/log/sdk/upload", web::post().to(DispatchServer::log_skip))
                 .route("/sdk/dataUpload", web::post().to(DispatchServer::log_skip))
                 .route("/crash/dataUpload", web::post().to(DispatchServer::log_skip))
 
