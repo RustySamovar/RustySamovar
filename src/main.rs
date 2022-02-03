@@ -11,11 +11,14 @@ mod dbmanager;
 mod jsonmanager;
 mod luamanager;
 
+mod subsystems;
+
 use server::NetworkServer;
 use server::DispatchServer;
 use dbmanager::DatabaseManager;
 use jsonmanager::JsonManager;
 use luamanager::LuaManager;
+use subsystems::EntitySubsystem;
 
 fn main() {
     pretty_env_logger::init();
