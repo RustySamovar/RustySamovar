@@ -23,7 +23,7 @@ macro_rules! register_callback {
 
     ($hashmap:ident, $notify:ident, $handler:ident) => {
         $hashmap.insert(proto::PacketId::$notify, |slef: &mut Self, user_id: u32, metadata: &proto::PacketHead, data: Vec<u8>| {
-            let notify = proto::$req::decode(&mut std::io::Cursor::new(data)).unwrap();
+            let notify = proto::$notify::decode(&mut std::io::Cursor::new(data)).unwrap();
             println!("Received NOTIFY {:?}", notify);
 
             slef.$handler(user_id, &metadata, &notify);
