@@ -26,7 +26,7 @@ use proto::get_player_token_rsp;
 
 use prost::Message;
 
-use packet_processor::PacketProcessor;
+use packet_processor::{PacketProcessor, EasilyUnpackable};
 
 extern crate kcp;
 
@@ -105,7 +105,7 @@ impl NetworkServer {
 
                         if packet_id == proto::PacketId::GetPlayerTokenRsp {
                             // TODO: a bit hacky!
-                            let token_rsp = GetPlayerTokenRsp::decode(&mut Cursor::new(data)).unwrap();
+                            let token_rsp: GetPlayerTokenRsp = EasilyUnpackable::from(&data);
                             client.update_key(token_rsp.secret_key_seed);
                         }
                     },
@@ -211,7 +211,7 @@ impl NetworkServer {
         };
 
         if packet_id == proto::PacketId::UnionCmdNotify {
-            let union = proto::UnionCmdNotify::decode(&mut Cursor::new(&data.data)).unwrap();
+            let union: proto::UnionCmdNotify = EasilyUnpackable::from(&data.data);
             for u_cmd in union.cmd_list.into_iter() {
                 self.send_packet_to_process(user_id, u_cmd.message_id as u16, &data.metadata, &u_cmd.body);
             }

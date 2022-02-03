@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 proto = { path = "../../proto" }
+prost = "0.8"

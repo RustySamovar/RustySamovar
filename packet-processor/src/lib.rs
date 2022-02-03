@@ -51,3 +51,22 @@ macro_rules! build {
         proto::$id { $($i: $e,)* ..proto::$id::default() }
     }};
 }
+
+/*
+#[macro_export]
+macro_rules! unpack {
+    ($packet:ident, $buffer:ident) => {{
+        proto::$packet::decode(&mut std::io::Cursor::new($buffer)).unwrap()
+    }};
+}
+*/
+
+pub trait EasilyUnpackable {
+    fn from(buf: &[u8]) -> Self;
+}
+
+impl<T: prost::Message + std::default::Default> EasilyUnpackable for T {
+    fn from(buf: &[u8]) -> Self {
+        Self::decode(&mut std::io::Cursor::new(buf)).unwrap()
+    }
+}
