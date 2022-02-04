@@ -1,34 +1,77 @@
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc::{self, Sender, Receiver}, Arc, Mutex};
+use std::thread;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use crate::server::IpcMessage;
 
 use prost::Message;
 
 use proto;
-use proto::{PacketId, CombatTypeArgument, ForwardType};
+use proto::{PacketId, CombatTypeArgument, ForwardType, ProtEntityType};
 
 use packet_processor_macro::*;
 #[macro_use]
 use packet_processor::*;
+use crate::utils::IdManager;
+
+#[derive(Debug, Clone)]
+struct Player {
+    player_id: u32,
+    pos: proto::Vector,
+    current_block: u32,
+}
+
+#[derive(Debug)]
+pub struct Entity {
+    health: i32,
+    entity_id: u32,
+}
 
 #[packet_processor(
 CombatInvocationsNotify,
 )]
 pub struct EntitySubsystem {
-    packets_to_send_tx: mpsc::Sender<IpcMessage>,
+    packets_to_send_tx: Sender<IpcMessage>,
+    players: Arc<Mutex<HashMap<u32, Player>>>,
+    players_moved: Sender<u32>,
 }
 
 impl EntitySubsystem {
-    pub fn new(packets_to_send_tx: mpsc::Sender<IpcMessage>) -> EntitySubsystem {
+    pub fn new(packets_to_send_tx: Sender<IpcMessage>) -> EntitySubsystem {
+        let (tx, rx): (Sender<u32>, Receiver<u32>) = mpsc::channel();
+
         let mut es = EntitySubsystem {
             packets_to_send_tx: packets_to_send_tx,
             packet_callbacks: HashMap::new(),
+            players_moved: tx,
+            players: Arc::new(Mutex::new(HashMap::new())),
         };
 
         es.register();
 
+        es.run(rx);
+
         return es;
+    }
+
+    fn run(&mut self, mut rx: Receiver<u32>) {
+        let players = self.players.clone();
+
+        thread::spawn(move|| {
+            loop {
+                let player_id = rx.recv().unwrap();
+
+                let mut player = match players.lock() {
+                    Ok(mut players) => players.get_mut(&player_id).unwrap().clone(),
+                    Err(_) => panic!("Failed to grab player data!"),
+                };
+
+                println!("Player {:?} moved!", player);
+
+                // TODO: get block!
+            }
+        });
     }
 
     fn process_combat_invocations(&self, user_id: u32, metadata: &proto::PacketHead, notify: &proto::CombatInvocationsNotify) {
@@ -68,7 +111,40 @@ impl EntitySubsystem {
     }
 
     fn ih_entity_move(&self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::EntityMoveInfo) {
+        if IdManager::get_entity_type_by_id(invoke.entity_id) == ProtEntityType::ProtEntityAvatar {
+            // Avatar moved => update player's position
+            let pos = if let Some(motion_info) = invoke.motion_info.as_ref() {
+                if let Some(pos) = motion_info.pos.as_ref() {
+                    pos.clone()
+                } else {
+                    return;
+                }
+            } else {
+                return;
+            };
 
+            match self.players.lock()
+            {
+                Ok(mut players) => match players.entry(user_id) {
+                    Occupied(mut player) => {
+                        player.into_mut().pos = pos;
+                    },
+                    Vacant(entry) => {
+                        // TODO: must panic!() here!
+                        let player = Player {
+                            player_id: user_id,
+                            pos: pos,
+                            current_block: 0,
+                        };
+
+                        entry.insert(player);
+                    },
+                },
+                Err(_) => panic!("Failed to grab player data!"),
+            };
+
+            self.players_moved.send(user_id).unwrap();
+        }
     }
 
     fn ih_set_attack_target(&self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::EvtSetAttackTargetInfo) {
