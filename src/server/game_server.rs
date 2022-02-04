@@ -7,7 +7,7 @@ use crate::server::GameWorld;
 use packet_processor::PacketProcessor;
 use crate::server::IpcMessage;
 
-use crate::DatabaseManager;
+use crate::{DatabaseManager, EntitySubsystem};
 use crate::JsonManager;
 use crate::LuaManager;
 use crate::server::LoginManager;
@@ -20,6 +20,7 @@ pub struct GameServer {
     login_manager: LoginManager,
     database_manager: Arc<DatabaseManager>,
     json_manager: Arc<JsonManager>,
+    processors: Vec<Box<PacketProcessor>>,
 }
 
 impl GameServer {
@@ -28,6 +29,7 @@ impl GameServer {
         let jm = Arc::new(JsonManager::new("./data/json"));
         let lm = LoginManager::new(db.clone(), jm.clone(), packets_to_send_tx.clone());
         let lum = Arc::new(LuaManager::new("./data/lua"));
+        let em = EntitySubsystem::new(packets_to_send_tx.clone());
 
         let gs = GameServer {
             packets_to_process_rx: packets_to_process_rx,
@@ -36,6 +38,7 @@ impl GameServer {
             login_manager: lm,
             database_manager: db.clone(),
             json_manager: jm.clone(),
+            processors: vec![Box::new(em)],
         };
 
         return gs;
@@ -59,12 +62,22 @@ impl GameServer {
                 let world = match self.worlds.entry(user_id) {
                     Occupied(world) => world.into_mut(),
                     Vacant(entry) => {
-                        let mut world = GameWorld::new(self.database_manager.clone(),self.json_manager.clone(), self.packets_to_send_tx.clone());
+                        let world = GameWorld::new(self.database_manager.clone(),self.json_manager.clone(), self.packets_to_send_tx.clone());
                         entry.insert(world)
                     },
                 };
-    
-                world.process(user_id, packet_id, metadata, data);
+
+                if world.is_supported(&packet_id) {
+                    world.process(user_id, packet_id.clone(), metadata.clone(), data.clone());
+                }
+
+                for processor in self.processors.iter_mut() {
+                    if processor.is_supported(&packet_id) {
+                        processor.process(user_id, packet_id.clone(), metadata.clone(), data.clone());
+                    }
+                }
+
+                //println!("No handler found for packet {:#?}", packet_id);
             }
         }
     }
