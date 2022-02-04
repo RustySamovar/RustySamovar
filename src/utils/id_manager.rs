@@ -10,6 +10,9 @@ impl IdManager {
     const PROUD_SKILL_MULT: u32 = 100;
     const PROUD_SKILL_OFFSET: u32 = 1;
 
+    const ENTITY_ID_OFFSET: u32 = 24;
+    const ENTITY_ID_MASK: u32 = ((1<<Self::ENTITY_ID_OFFSET)-1); //0xFFFFFF;
+
     pub fn get_avatar_id_by_char_id(character_id: u32) -> u32 {
         if (character_id > 100) {
             panic!("Invalid character ID: {}", character_id);
@@ -31,5 +34,16 @@ impl IdManager {
         }
 
         return character_id * Self::DEPOT_ID_MULT + offset;
+    }
+
+    pub fn get_entity_type_by_id(entity_id: u32) -> proto::ProtEntityType {
+        match proto::ProtEntityType::from_i32((entity_id >> Self::ENTITY_ID_OFFSET) as i32) {
+            Some(t) => t,
+            None => panic!("Invalid entity ID {}: can't figure out type!", entity_id),
+        }
+    }
+
+    pub fn get_entity_id_by_type_and_sub_id(t: &proto::ProtEntityType, sub_id: u32) -> u32 {
+        return ((*t as u32) << Self::ENTITY_ID_OFFSET) | (sub_id & Self::ENTITY_ID_MASK);
     }
 }
