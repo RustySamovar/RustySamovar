@@ -16,6 +16,7 @@ use packet_processor_macro::*;
 use packet_processor::*;
 use crate::DatabaseManager;
 use crate::JsonManager;
+use crate::utils::IdManager;
 
 macro_rules! collection {
     // map-like
@@ -47,8 +48,9 @@ pub struct GameWorld {
 
 impl GameWorld {
     const BASE_GUID: u64 = 0x2400000000000000;
-    const SPOOFED_AVATAR_EID: u32 = (1<<24) + 146;
-    const SPOOFED_WEAPON_EID: u32 = 0x6000000 + 146;
+    const SPOOFED_AVATAR_SUB_EID: u32 = 146;
+    const SPOOFED_WEAPON_SUB_EID: u32 = 146;
+    const SPOOFED_TEAM_SUB_ID: u32 = 1;
     const SPOOFED_WEAPON_GUID: u64 = GameWorld::BASE_GUID + 2;
 
     pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameWorld {
@@ -182,20 +184,22 @@ impl GameWorld {
        
         let avatar_enter_info = build!(AvatarEnterSceneInfo {
             avatar_guid: current_avatar_guid as u64, // FIXME
-            avatar_entity_id: GameWorld::SPOOFED_AVATAR_EID,
+            avatar_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, GameWorld::SPOOFED_AVATAR_SUB_EID),
             weapon_guid: GameWorld::SPOOFED_WEAPON_GUID,
-            weapon_entity_id: GameWorld::SPOOFED_WEAPON_EID,
+            weapon_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, GameWorld::SPOOFED_WEAPON_SUB_EID),
         });
         let mp_level_info = build!(MpLevelEntityInfo {
             entity_id: 0xb000000 + 146,
             authority_peer_id: 1,
         });
-        let team_enter_info = build!(TeamEnterSceneInfo { team_entity_id: 0x9000000 + 1, });
+        let team_enter_info = build!(TeamEnterSceneInfo {
+            team_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityTeam, Self::SPOOFED_TEAM_SUB_ID),
+            });
 
         build_and_send!(self, user_id, metadata, PlayerEnterSceneInfoNotify {
             enter_scene_token: current_scene_info.scene_token,
             avatar_enter_info: vec![avatar_enter_info],
-            cur_avatar_entity_id: GameWorld::SPOOFED_AVATAR_EID,
+            cur_avatar_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, GameWorld::SPOOFED_AVATAR_SUB_EID),
             mp_level_entity_info: Some(mp_level_info),
             team_enter_info: Some(team_enter_info),
         });
@@ -224,9 +228,9 @@ impl GameWorld {
             scene_id: current_scene_info.scene_id,
             player_uid: user_id,
             avatar_guid: current_avatar_guid as u64, // FIXME
-            entity_id: GameWorld::SPOOFED_AVATAR_EID,
+            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, GameWorld::SPOOFED_AVATAR_SUB_EID),
             weapon_guid: GameWorld::SPOOFED_WEAPON_GUID,
-            weapon_entity_id: GameWorld::SPOOFED_WEAPON_EID,
+            weapon_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, GameWorld::SPOOFED_WEAPON_SUB_EID),
             is_player_cur_avatar: true, // TODO
             scene_entity_info: Some(self.spoof_scene_default_avatar(user_id)),
             ability_control_block: Some(self.spoof_default_abilities()),
@@ -282,7 +286,7 @@ impl GameWorld {
         });
 
         let weapon = build!(SceneWeaponInfo {
-            entity_id: GameWorld::SPOOFED_WEAPON_EID,
+            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, Self::SPOOFED_WEAPON_SUB_EID),
             gadget_id: 50011406, // TODO!
             item_id: 11406,
             guid: GameWorld::SPOOFED_WEAPON_GUID,
@@ -314,7 +318,7 @@ impl GameWorld {
 
         let scene_entity_info = build!(SceneEntityInfo {
             entity_type: proto::ProtEntityType::ProtEntityAvatar as i32,
-            entity_id: GameWorld::SPOOFED_AVATAR_EID,
+            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, Self::SPOOFED_AVATAR_SUB_EID),
             life_state: 1,
             entity: Some(proto::scene_entity_info::Entity::Avatar(scene_avatar_info)),
             prop_list: Remapper::remap2(&current_avatar_props),
