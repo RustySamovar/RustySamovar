@@ -13,19 +13,57 @@ use proto::{PacketId, CombatTypeArgument, ForwardType, ProtEntityType};
 use packet_processor_macro::*;
 #[macro_use]
 use packet_processor::*;
-use crate::utils::IdManager;
+use serde_json::de::Read;
+use crate::LuaManager;
+use crate::utils::{IdManager, TimeManager};
 
 #[derive(Debug, Clone)]
 struct Player {
     player_id: u32,
     pos: proto::Vector,
+    current_scene: u32,
     current_block: u32,
+    entities: HashMap<u32,Entity>,
+    lua_manager: Arc<LuaManager>,
+    packets_to_send_tx: Sender<IpcMessage>,
 }
 
-#[derive(Debug)]
+impl Player {
+    const DESPAWN_DISTANCE: f32 = 10.0;
+    const SPAWN_DISTANCE: f32 = 8.0;
+    const RESPAWN_TIME: i32 = 10; // In seconds
+
+    pub fn despawn_everything(&self) {
+        let entity_list: Vec<u32> = self.entities.iter().map(|(k, v)| *k).collect();
+
+        if entity_list.len() > 0 {
+            // TODO: HACK!
+            let player_id = self.player_id;
+            let metadata = &build!(PacketHead {
+                sent_ms: TimeManager::timestamp(),
+                client_sequence_id: 0,
+            });
+
+            build_and_send!(self, player_id, metadata, SceneEntityDisappearNotify {
+                entity_list: entity_list,
+                disappear_type: proto::VisionType::VisionMiss as i32,
+            })
+        }
+    }
+
+    pub fn position_changed(&mut self) {
+        // 1. Go through the list of spawned entities and despawn those that are too far from us
+        // 2. Go through the list of available entities and spawn those that are close to us and their respawn timeout (in case of collectibles and monsters) is over
+
+    }
+
+    // Gatherable stuff is described in GatherExcelConfigData
+}
+
+#[derive(Debug,Clone)]
 pub struct Entity {
-    health: i32,
     entity_id: u32,
+    health: i32,
 }
 
 #[packet_processor(
@@ -35,10 +73,11 @@ pub struct EntitySubsystem {
     packets_to_send_tx: Sender<IpcMessage>,
     players: Arc<Mutex<HashMap<u32, Player>>>,
     players_moved: Sender<u32>,
+    lua_manager: Arc<LuaManager>,
 }
 
 impl EntitySubsystem {
-    pub fn new(packets_to_send_tx: Sender<IpcMessage>) -> EntitySubsystem {
+    pub fn new(lua_manager: Arc<LuaManager>, packets_to_send_tx: Sender<IpcMessage>) -> EntitySubsystem {
         let (tx, rx): (Sender<u32>, Receiver<u32>) = mpsc::channel();
 
         let mut es = EntitySubsystem {
@@ -46,6 +85,7 @@ impl EntitySubsystem {
             packet_callbacks: HashMap::new(),
             players_moved: tx,
             players: Arc::new(Mutex::new(HashMap::new())),
+            lua_manager: lua_manager,
         };
 
         es.register();
@@ -55,21 +95,33 @@ impl EntitySubsystem {
         return es;
     }
 
-    fn run(&mut self, mut rx: Receiver<u32>) {
+    fn run(&self, mut rx: Receiver<u32>) {
         let players = self.players.clone();
+        let lua_manager = self.lua_manager.clone();
 
-        thread::spawn(move|| {
+        thread::spawn(move || {
             loop {
                 let player_id = rx.recv().unwrap();
 
-                let mut player = match players.lock() {
-                    Ok(mut players) => players.get_mut(&player_id).unwrap().clone(),
+                match players.lock() {
+                    Ok(mut players) => {
+                        let mut player = &mut players.get_mut(&player_id).unwrap();
+                        let scene = lua_manager.get_scene_by_id(player.current_scene).unwrap();
+                        let block = scene.get_block_by_pos(&player.pos);
+
+                        match block {
+                            Ok(block) =>
+                                if player.current_block != block.block_id {
+                                    println!("Player {:?} moved to the block {:?}", player, block.block_id);
+                                    player.current_block = block.block_id;
+                                },
+                            Err(_) => {/* TODO? */},
+                        };
+
+                        player.position_changed();
+                    },
                     Err(_) => panic!("Failed to grab player data!"),
                 };
-
-                println!("Player {:?} moved!", player);
-
-                // TODO: get block!
             }
         });
     }
@@ -135,6 +187,10 @@ impl EntitySubsystem {
                             player_id: user_id,
                             pos: pos,
                             current_block: 0,
+                            current_scene: 3,
+                            entities: HashMap::new(),
+                            lua_manager: self.lua_manager.clone(),
+                            packets_to_send_tx: self.packets_to_send_tx.clone(),
                         };
 
                         entry.insert(player);

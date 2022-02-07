@@ -3,19 +3,21 @@ use std::result::Result;
 
 use lua_serde::from_file;
 
+use super::scene_config;
+
 use super::scene_config::Group;
 use super::scene_config::Block;
 use super::scene_config::Scene;
 
 #[derive(Debug)]
-struct InternalSceneData {
+pub struct InternalSceneData {
     pub scene_id: u32,
     pub scene: Scene,
     pub blocks: HashMap<u32,InternalBlockData>,
 }
 
 #[derive(Debug)]
-struct InternalBlockData {
+pub struct InternalBlockData {
     pub scene_id: u32,
     pub block_id: u32,
     pub block: Block,
@@ -23,7 +25,7 @@ struct InternalBlockData {
 }
 
 #[derive(Debug)]
-struct InternalGroupData {
+pub struct InternalGroupData {
     pub scene_id: u32,
     pub block_id: u32,
     pub group_id: u32,
@@ -31,6 +33,21 @@ struct InternalGroupData {
     // No extra data here
 }
 
+/// Implementation of utility functions
+impl InternalSceneData {
+    pub fn get_block_by_pos(&self, pos: &proto::Vector) -> Result<&InternalBlockData, String> {
+        for (key, value) in self.scene.block_rects.iter() {
+            if value.contains(pos.x, pos.z) {
+                let id = self.scene.blocks[&key];
+                return Ok(&self.blocks[&id]);
+            }
+        }
+
+        return Err(format!("Block in coords {}, {} not found!", pos.x, pos.z));
+    }
+}
+
+#[derive(Debug)]
 pub struct LuaManager {
     scenes_data: HashMap<u32,InternalSceneData>,
 }
@@ -49,6 +66,14 @@ impl LuaManager {
         LuaManager {
             scenes_data: scenes,
         }
+    }
+
+    pub fn get_scene_by_id(&self, scene_id: u32) -> Result<&InternalSceneData, String> {
+        if self.scenes_data.contains_key(&scene_id) {
+            return Ok(&self.scenes_data[&scene_id]);
+        }
+
+        return Err(format!("Scene {} not found!", scene_id));
     }
 
     fn load_scenes(directory: &str, scenes_to_load: &Vec<u32>) -> HashMap<u32,InternalSceneData> {

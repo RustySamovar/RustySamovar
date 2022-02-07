@@ -1,3 +1,4 @@
+use num_traits::Float;
 use std::collections::HashMap;
 
 use serde::Deserialize;
@@ -5,27 +6,70 @@ use serde::Deserialize;
 // sceneX.lua
 
 #[derive(Deserialize, PartialEq, Debug)]
-pub struct Vector<T> {
+pub struct Vector {
     #[serde(default)]
-    pub x: T,
+    pub x: f32,
     #[serde(default)]
-    pub y: T,
+    pub y: f32,
     #[serde(default)]
-    pub z: T,
+    pub z: f32,
+}
+
+impl Vector {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Vector {
+            x,
+            y,
+            z
+        }
+    }
+
+    pub fn add(&self, other: &Self) -> Vector {
+        Vector {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
+    }
+
+    pub fn sub(&self, other: &Self) -> Vector {
+        Vector {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
+    }
+
+    pub fn lensq(&self) -> f32 {
+        self.x*self.x + self.y*self.y + self.z*self.z
+    }
+
+    pub fn len(&self) -> f32 {
+        self.lensq().sqrt()
+    }
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct BlockRect {
-    pub min: Vector<f32>,
-    pub max: Vector<f32>,
+    pub min: Vector,
+    pub max: Vector,
+}
+
+impl BlockRect {
+    pub fn contains(&self, x: f32, z: f32) -> bool {
+        self.min.x <= x &&
+            self.min.z <= z &&
+            self.max.x > x &&
+            self.max.z > z
+    }
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct SceneConfig {
-    pub born_rot: Vector<f32>,
-    pub born_pos: Vector<f32>,
-    pub begin_pos: Vector<f32>,
-    pub size: Vector<f32>,
+    pub born_rot: Vector,
+    pub born_pos: Vector,
+    pub begin_pos: Vector,
+    pub size: Vector,
     #[serde(default)]
     pub die_y: f32,
 }
@@ -56,7 +100,7 @@ pub struct GroupInfo {
     pub dynamic_load: bool,
     pub id: u32,
     pub area: Option<u32>,
-    pub pos: Vector<f32>,
+    pub pos: Vector,
     pub business: Option<Business>,
 }
 
@@ -130,8 +174,8 @@ pub struct Variable {
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct Monster {
-    pub rot: Vector<f32>,
-    pub pos: Vector<f32>,
+    pub rot: Vector,
+    pub pos: Vector,
     pub config_id: u32,
     pub level: u32,
     pub monster_id: u32,
@@ -139,8 +183,8 @@ pub struct Monster {
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct Npc {
-    pub rot: Vector<f32>,
-    pub pos: Vector<f32>,
+    pub rot: Vector,
+    pub pos: Vector,
     pub config_id: u32,
     pub npc_id: u32,
 
@@ -150,8 +194,8 @@ pub struct Npc {
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct Gadget {
-    pub rot: Vector<f32>,
-    pub pos: Vector<f32>,
+    pub rot: Vector,
+    pub pos: Vector,
     pub config_id: u32,
     pub level: u32,
     pub gadget_id: u32,
