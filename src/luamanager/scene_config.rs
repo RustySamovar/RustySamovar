@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 // sceneX.lua
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Vector {
     #[serde(default)]
     pub x: f32,
@@ -49,7 +49,19 @@ impl Vector {
     }
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+impl From<&Vector> for proto::Vector {
+    fn from(v: &Vector) -> proto::Vector {
+        proto::Vector { x: v.x, y: v.y, z: v.z }
+    }
+}
+
+impl From<&proto::Vector> for Vector {
+    fn from(v: &proto::Vector) -> Vector {
+        Vector { x: v.x, y: v.y, z: v.z }
+    }
+}
+
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct BlockRect {
     pub min: Vector,
     pub max: Vector,
@@ -64,7 +76,7 @@ impl BlockRect {
     }
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct SceneConfig {
     pub born_rot: Vector,
     pub born_pos: Vector,
@@ -74,7 +86,7 @@ pub struct SceneConfig {
     pub die_y: f32,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Scene {
     pub blocks: HashMap<u32,u32>,
     #[serde(default)]
@@ -88,12 +100,12 @@ pub struct Scene {
 
 // sceneX_blockY.lua
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Block {
     pub groups: HashMap<u32,GroupInfo>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct GroupInfo {
     pub is_replaceable: Option<ComplicatedBool>,
     #[serde(default)]
@@ -104,21 +116,21 @@ pub struct GroupInfo {
     pub business: Option<Business>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct ComplicatedBool {
     pub version: u32,
     pub value: bool,
     pub new_bin_only: bool,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Business {
     pub r#type: u32,
 }
 
 // sceneX_groupZ.lua
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Group {
     pub init_config: Option<GroupInitConfig>,
     #[serde(default)]
@@ -140,7 +152,7 @@ pub struct Group {
     // MovePlatform - Function???
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Suite {
     pub rand_weight: u32,
 
@@ -157,7 +169,7 @@ pub struct Suite {
     pub monsters: HashMap<u32,u32>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct GroupInitConfig {
     pub end_suite: Option<u32>,
     //#[serde(default)]
@@ -165,14 +177,14 @@ pub struct GroupInitConfig {
     pub suite: u32,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Variable {
     pub name: String,
     pub value: u32,
     pub no_refresh: bool,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Monster {
     pub rot: Vector,
     pub pos: Vector,
@@ -181,7 +193,7 @@ pub struct Monster {
     pub monster_id: u32,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Npc {
     pub rot: Vector,
     pub pos: Vector,
@@ -192,7 +204,7 @@ pub struct Npc {
     pub room: Option<u32>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Gadget {
     pub rot: Vector,
     pub pos: Vector,
@@ -215,7 +227,7 @@ pub struct Gadget {
     pub is_use_point_array: bool,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct ExploreInfo {
     pub exp: u32,
     pub name: String,

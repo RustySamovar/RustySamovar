@@ -1,6 +1,6 @@
 use std::sync::{mpsc::{self, Sender, Receiver}, Arc, Mutex};
 use std::thread;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use crate::server::IpcMessage;
@@ -17,20 +17,23 @@ use serde_json::de::Read;
 use crate::LuaManager;
 use crate::utils::{IdManager, TimeManager};
 
+use crate::luamanager::Vector;
+use crate::luamanager::Entity;
+
 #[derive(Debug, Clone)]
 struct Player {
     player_id: u32,
-    pos: proto::Vector,
+    pos: Vector,
     current_scene: u32,
     current_block: u32,
-    entities: HashMap<u32,Entity>,
+    entities: HashMap<u32, Arc<Entity>>,
     lua_manager: Arc<LuaManager>,
     packets_to_send_tx: Sender<IpcMessage>,
 }
 
 impl Player {
-    const DESPAWN_DISTANCE: f32 = 10.0;
-    const SPAWN_DISTANCE: f32 = 8.0;
+    const DESPAWN_DISTANCE: f32 = 100.0;
+    const SPAWN_DISTANCE: f32 = Self::DESPAWN_DISTANCE * 0.8;
     const RESPAWN_TIME: i32 = 10; // In seconds
 
     pub fn despawn_everything(&self) {
@@ -53,17 +56,65 @@ impl Player {
 
     pub fn position_changed(&mut self) {
         // 1. Go through the list of spawned entities and despawn those that are too far from us
-        // 2. Go through the list of available entities and spawn those that are close to us and their respawn timeout (in case of collectibles and monsters) is over
+        let despawn_list: Vec<u32> = self.entities.iter()
+            .filter(|(k, v)| v.pos().sub(&self.pos).len() > Self::DESPAWN_DISTANCE)
+            .map(|(k, v)| *k)
+            .collect();
 
+        if despawn_list.len() > 0 {
+            for k in despawn_list.iter() {
+                self.entities.remove(&k);
+            }
+
+            // TODO: HACK!
+            let player_id = self.player_id;
+            let metadata = &build!(PacketHead {
+                sent_ms: TimeManager::timestamp(),
+                client_sequence_id: 0,
+            });
+
+            build_and_send!(self, player_id, metadata, SceneEntityDisappearNotify {
+                entity_list: despawn_list,
+                disappear_type: proto::VisionType::VisionMiss as i32,
+            });
+        }
+
+        // 2. Go through the list of available entities and spawn those that are close to us and their respawn timeout (in case of collectibles and monsters) is over
+        let spawned_list: HashSet<u32> = self.entities.iter().map(|(k, v)| *k).collect();
+
+        // TODO: do this once only on block change!
+        let scene = self.lua_manager.get_scene_by_id(self.current_scene).unwrap();
+        let block = match scene.get_block_by_id(self.current_block) { // TODO: this is due to some blocks missing
+            Ok(block) => block,
+            Err(_) => return,
+        };
+
+        let spawn_list: Vec<Arc<Entity>> = block.entities.iter()
+            .filter(|(entity_id, entity)| !spawned_list.contains(entity_id))
+            .filter(|(entity_id, entity)| entity.pos().sub(&self.pos).len() < Self::SPAWN_DISTANCE)
+            .map(|(entity_id, entity)| (*entity).clone())
+            .collect();
+
+        if spawn_list.len() > 0 {
+            // TODO: HACK!
+            let player_id = self.player_id;
+            let metadata = &build!(PacketHead {
+                sent_ms: TimeManager::timestamp(),
+                client_sequence_id: 0,
+            });
+
+            build_and_send!(self, player_id, metadata, SceneEntityAppearNotify {
+                entity_list: spawn_list.iter().map(|e| e.convert()).collect(),
+                appear_type: proto::VisionType::VisionBorn as i32,
+            });
+
+            for entity in spawn_list.into_iter() {
+                self.entities.insert(entity.entity_id, entity.clone());
+            }
+        }
     }
 
     // Gatherable stuff is described in GatherExcelConfigData
-}
-
-#[derive(Debug,Clone)]
-pub struct Entity {
-    entity_id: u32,
-    health: i32,
 }
 
 #[packet_processor(
@@ -112,10 +163,13 @@ impl EntitySubsystem {
                         match block {
                             Ok(block) =>
                                 if player.current_block != block.block_id {
-                                    println!("Player {:?} moved to the block {:?}", player, block.block_id);
+                                    println!("Player {:?} moved to the block {:?}", player.player_id, block.block_id);
                                     player.current_block = block.block_id;
                                 },
-                            Err(_) => {/* TODO? */},
+                            Err(_) => {
+                                // TODO?
+                                player.current_block = 0;
+                            },
                         };
 
                         player.position_changed();
@@ -167,7 +221,7 @@ impl EntitySubsystem {
             // Avatar moved => update player's position
             let pos = if let Some(motion_info) = invoke.motion_info.as_ref() {
                 if let Some(pos) = motion_info.pos.as_ref() {
-                    pos.clone()
+                    pos.into()
                 } else {
                     return;
                 }
