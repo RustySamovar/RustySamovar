@@ -630,8 +630,8 @@ impl DispatchServer {
     }
 
     fn get_local_ip() -> String {
-        return local_ip_address::local_ip().unwrap().to_string();
-        //return "127.0.0.1".to_string();
+        //return local_ip_address::local_ip().unwrap().to_string();
+        return "127.0.0.1".to_string();
     }
 
     fn load_keys(name: &str) -> (Vec<u8>, Vec<u8>) {
