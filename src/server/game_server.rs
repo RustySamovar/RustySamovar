@@ -29,7 +29,7 @@ impl GameServer {
         let jm = Arc::new(JsonManager::new("./data/json"));
         let lm = LoginManager::new(db.clone(), jm.clone(), packets_to_send_tx.clone());
         let lum = Arc::new(LuaManager::new("./data/lua"));
-        let em = EntitySubsystem::new(lum.clone(), packets_to_send_tx.clone());
+        let em = EntitySubsystem::new(lum.clone(), jm.clone(), db.clone(), packets_to_send_tx.clone());
 
         let gs = GameServer {
             packets_to_process_rx: packets_to_process_rx,

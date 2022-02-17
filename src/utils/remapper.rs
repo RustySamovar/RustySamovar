@@ -1,5 +1,19 @@
 use std::collections::HashMap;
 
+#[macro_export]
+macro_rules! collection {
+    // map-like
+    ($($k:expr => $v:expr),* $(,)?) => {{
+        use std::iter::{Iterator, IntoIterator};
+        Iterator::collect(IntoIterator::into_iter([$(($k, $v),)*]))
+    }};
+    // set-like
+    ($($v:expr),* $(,)?) => {{
+        use std::iter::{Iterator, IntoIterator};
+        Iterator::collect(IntoIterator::into_iter([$($v,)*]))
+    }};
+}
+
 pub struct Remapper {}
 
 impl Remapper {
@@ -40,6 +54,19 @@ impl Remapper {
         for (key, value) in map {
             let mut pair = proto::FightPropPair::default();
             pair.prop_type = *key;
+            pair.prop_value = *value;
+            ret.push(pair);
+        }
+
+        return ret;
+    }
+
+    pub fn remap4(map: &HashMap<proto::FightPropType, f32>) -> Vec<proto::FightPropPair> {
+        let mut ret = vec![];
+
+        for (key, value) in map {
+            let mut pair = proto::FightPropPair::default();
+            pair.prop_type = *key as u32;
             pair.prop_value = *value;
             ret.push(pair);
         }

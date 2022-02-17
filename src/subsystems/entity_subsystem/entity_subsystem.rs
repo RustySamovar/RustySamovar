@@ -14,11 +14,11 @@ use packet_processor_macro::*;
 #[macro_use]
 use packet_processor::*;
 use serde_json::de::Read;
-use crate::LuaManager;
+use crate::{DatabaseManager, JsonManager, LuaManager};
 use crate::utils::{IdManager, TimeManager};
 
 use crate::luamanager::Vector;
-use crate::luamanager::Entity;
+use super::entities::Entity;
 
 #[derive(Debug, Clone)]
 struct Player {
@@ -28,6 +28,8 @@ struct Player {
     current_block: u32,
     entities: HashMap<u32, Arc<Entity>>,
     lua_manager: Arc<LuaManager>,
+    json_manager: Arc<JsonManager>,
+    db_manager: Arc<DatabaseManager>,
     packets_to_send_tx: Sender<IpcMessage>,
 }
 
@@ -102,9 +104,10 @@ impl Player {
                 sent_ms: TimeManager::timestamp(),
                 client_sequence_id: 0,
             });
+            let world_level = self.db_manager.get_player_prop(self.player_id, proto::PropType::PropPlayerWorldLevel as u32).unwrap() as u32; // TODO: hardcoded value!
 
             build_and_send!(self, player_id, metadata, SceneEntityAppearNotify {
-                entity_list: spawn_list.iter().map(|e| e.convert()).collect(),
+                entity_list: spawn_list.iter().map(|e| e.convert(world_level, &self.json_manager, &self.db_manager)).collect(),
                 appear_type: proto::VisionType::VisionBorn as i32,
             });
 
@@ -125,10 +128,12 @@ pub struct EntitySubsystem {
     players: Arc<Mutex<HashMap<u32, Player>>>,
     players_moved: Sender<u32>,
     lua_manager: Arc<LuaManager>,
+    json_manager: Arc<JsonManager>,
+    db_manager: Arc<DatabaseManager>,
 }
 
 impl EntitySubsystem {
-    pub fn new(lua_manager: Arc<LuaManager>, packets_to_send_tx: Sender<IpcMessage>) -> EntitySubsystem {
+    pub fn new(lua_manager: Arc<LuaManager>, json_manager: Arc<JsonManager>, db_manager: Arc<DatabaseManager>, packets_to_send_tx: Sender<IpcMessage>) -> EntitySubsystem {
         let (tx, rx): (Sender<u32>, Receiver<u32>) = mpsc::channel();
 
         let mut es = EntitySubsystem {
@@ -137,6 +142,8 @@ impl EntitySubsystem {
             players_moved: tx,
             players: Arc::new(Mutex::new(HashMap::new())),
             lua_manager: lua_manager,
+            json_manager: json_manager,
+            db_manager: db_manager,
         };
 
         es.register();
@@ -244,6 +251,8 @@ impl EntitySubsystem {
                             current_scene: 3,
                             entities: HashMap::new(),
                             lua_manager: self.lua_manager.clone(),
+                            json_manager: self.json_manager.clone(),
+                            db_manager: self.db_manager.clone(),
                             packets_to_send_tx: self.packets_to_send_tx.clone(),
                         };
 

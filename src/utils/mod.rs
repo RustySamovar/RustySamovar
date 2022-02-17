@@ -3,6 +3,8 @@ mod data_packet;
 mod id_manager;
 mod time_manager;
 mod avatar_builder;
+
+#[macro_use]
 mod remapper;
 
 pub use self::handshake_packet::HandshakePacket;

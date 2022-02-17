@@ -1,6 +1,8 @@
 // Database Manager
 use std::collections::HashMap;
 
+use crate::collection;
+
 use sea_orm::{entity::*, error::*, query::*, DbConn, FromQueryResult, Database};
 use sea_orm::entity::prelude::*;
 use crate::JsonManager;
@@ -59,19 +61,6 @@ use super::reliquary_prop::Entity as ReliquaryPropEntity;
 pub use super::furniture_info::Model as FurnitureInfo;
 use super::furniture_info::Entity as FurnitureInfoEntity;
 
-macro_rules! collection {
-    // map-like
-    ($($k:expr => $v:expr),* $(,)?) => {{
-        use std::iter::{Iterator, IntoIterator};
-        Iterator::collect(IntoIterator::into_iter([$(($k, $v),)*]))
-    }};
-    // set-like
-    ($($v:expr),* $(,)?) => {{
-        use std::iter::{Iterator, IntoIterator};
-        Iterator::collect(IntoIterator::into_iter([$($v,)*]))
-    }};
-}
-
 trait Block {
     fn wait(self) -> <Self as futures::Future>::Output
         where Self: Sized, Self: futures::Future
@@ -84,6 +73,7 @@ impl<F,T> Block for F
     where F: futures::Future<Output = T>
 {}
 
+#[derive(Debug)]
 pub struct DatabaseManager {
     db: DbConn,
 }
@@ -145,6 +135,17 @@ impl DatabaseManager {
             .collect();
 
         return Some(props);
+    }
+
+    pub fn get_player_prop(&self, uid: u32, prop_id: u32) -> Option<i64> {
+        match PlayerPropEntity::find().filter(
+                Condition::all()
+                    .add(super::player_prop::Column::Uid.eq(uid))
+                    .add(super::player_prop::Column::PropId.eq(prop_id))
+        ).one(&self.db).wait() {
+            Ok(prop) => Some(prop?.prop_value), // Returns None if prop is none
+            Err(_) => panic!("DB ERROR!"),
+        }
     }
 /*
     pub fn _get_avatar_props(&self, guid: u64) -> Option<HashMap<u32, i64>> {
