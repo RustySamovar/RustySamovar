@@ -209,7 +209,7 @@ impl DispatchServer {
     }
 
     async fn query_region_list(c: web::Query<ClientInfo>) -> String {
-        println!("Client: {:?}", c);
+        println!("RegionList, Client: {:?}", c);
 
         let keys = DispatchServer::load_keys("master");
         
@@ -242,7 +242,7 @@ impl DispatchServer {
     }
 
     async fn query_cur_region(c: web::Query<ClientInfo>) -> String {
-        println!("Client: {:?}", c);
+        println!("CurRegion, Client: {:?}", c);
 
         let keys = DispatchServer::load_keys("master");
         
