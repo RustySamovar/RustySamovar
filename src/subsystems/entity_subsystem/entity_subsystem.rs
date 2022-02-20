@@ -92,8 +92,8 @@ impl Player {
         };
 
         let spawn_list: Vec<Arc<Entity>> = block.entities.iter()
-            .filter(|(entity_id, entity)| !spawned_list.contains(entity_id))
-            .filter(|(entity_id, entity)| entity.pos().sub(&self.pos).len() < Self::SPAWN_DISTANCE)
+            .filter(|(entity_id, entity)| !spawned_list.contains(entity_id)) // If entity isn't spawned already...
+            .filter(|(entity_id, entity)| entity.pos().sub(&self.pos).len() < Self::SPAWN_DISTANCE) // ... and is close enough
             .map(|(entity_id, entity)| (*entity).clone())
             .collect();
 
@@ -104,7 +104,7 @@ impl Player {
                 sent_ms: TimeManager::timestamp(),
                 client_sequence_id: 0,
             });
-            let world_level = self.db_manager.get_player_prop(self.player_id, proto::PropType::PropPlayerWorldLevel as u32).unwrap() as u32; // TODO: hardcoded value!
+            let world_level = self.db_manager.get_player_world_level(self.player_id).unwrap() as u32; // TODO: hardcoded value!
 
             build_and_send!(self, player_id, metadata, SceneEntityAppearNotify {
                 entity_list: spawn_list.iter().map(|e| e.convert(world_level, &self.json_manager, &self.db_manager)).collect(),
