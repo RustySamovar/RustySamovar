@@ -46,4 +46,8 @@ impl IdManager {
     pub fn get_entity_id_by_type_and_sub_id(t: &proto::ProtEntityType, sub_id: u32) -> u32 {
         return ((*t as u32) << Self::ENTITY_ID_OFFSET) | (sub_id & Self::ENTITY_ID_MASK);
     }
+
+    pub fn get_guid_by_uid_and_id(uid: u32, id: u32) -> u64 {
+        return (((uid as u64) << 32) | (id as u64));
+    }
 }
