@@ -353,6 +353,10 @@ impl Entity {
         self.entity.pos()
     }
 
+    pub fn etype(&self) -> proto::ProtEntityType {
+        self.entity.etype()
+    }
+
     pub fn convert(&self, world_level: u32, jm: &Arc<JsonManager>, db: &Arc<DatabaseManager>) -> proto::SceneEntityInfo {
         let mut sei = build!(SceneEntityInfo {
             entity_id: self.entity_id,
