@@ -1,16 +1,30 @@
 use std::fs::read_to_string; // use instead of std::fs::File
 use std::path::Path;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use crate::jsonmanager::gather::Gather;
+use crate::jsonmanager::shop_goods::ShopGoods;
+use crate::jsonmanager::shop_rotate::ShopRotate;
 
 use super::avatar_skill_depot::AvatarSkillDepot;
 use super::entity_curve::EntityCurve;
 use super::monster::Monster;
 use super::world_level::WorldLevel;
 use super::gadget_prop::GadgetProp;
+
+fn group_nonconsec_by<A, B, I>(v: I, key: fn (&B) -> A) -> BTreeMap<A, Vec<B>>
+    where
+        A: Ord,
+        I: IntoIterator<Item = B>,
+{
+    let mut result = BTreeMap::<A, Vec<B>>::new();
+    for e in v {
+        result.entry(key(&e)).or_default().push(e);
+    }
+    result
+}
 
 struct JsonReader {
     base_path: String,
@@ -25,6 +39,8 @@ pub struct JsonManager {
     pub gadget_props: HashMap<u32, GadgetProp>,
     pub gadget_curves: HashMap<u32,EntityCurve>,
     pub gathers: HashMap<u32, Gather>,
+    pub shop_goods: HashMap<u32, Vec<ShopGoods>>,
+    pub shop_rotate: HashMap<u32, Vec<ShopRotate>>,
 }
 
 impl std::fmt::Debug for JsonManager { // TODO: fucking hack!
@@ -44,6 +60,8 @@ impl JsonManager {
         let gadget_props: Vec<GadgetProp> = reader.read_json_list("GadgetProp");
         let gc: Vec<EntityCurve> = reader.read_json_list("GadgetCurve");
         let gathers: Vec<Gather> = reader.read_json_list("Gather");
+        let shop_goods: Vec<ShopGoods> = reader.read_json_list("ShopGoods");
+        let shop_rotate: Vec<ShopRotate> = reader.read_json_list("ShopRotate");
 
         return JsonManager {
             reader: reader,
@@ -54,6 +72,10 @@ impl JsonManager {
             gadget_props: gadget_props.into_iter().map(|gp| (gp.id, gp)).collect(),
             gadget_curves: gc.into_iter().map(|g| (g.level, g)).collect(),
             gathers: gathers.into_iter().map(|g| (g.gadget_id, g)).collect(), // TODO: we index it by gadget_id and not by it's id!
+            shop_goods: group_nonconsec_by(shop_goods, |sg| sg.shop_type).into_iter() // TODO: we're grouping by shop_type, not by goods ID!
+                .collect(),
+            shop_rotate: group_nonconsec_by(shop_rotate, |sr| sr.rotate_id).into_iter() // TODO: we're grouping by rotate_id, not by ID!
+                .collect(),
         };
     }
 }

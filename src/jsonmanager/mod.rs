@@ -8,5 +8,8 @@ mod monster;
 mod world_level;
 mod gadget_prop;
 mod gather;
+mod shop_goods;
+mod shop_rotate;
 
 pub use entity_curve::{CurveInfo,EntityCurve};
+pub use shop_goods::ShopGoods;
