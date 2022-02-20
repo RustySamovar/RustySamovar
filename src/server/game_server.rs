@@ -12,6 +12,8 @@ use crate::JsonManager;
 use crate::LuaManager;
 use crate::server::LoginManager;
 use std::sync::Arc;
+use crate::subsystems::{NpcSubsystem, ShopSubsystem};
+use crate::subsystems::misc::{PauseSubsystem, SceneSubsystem, SocialSubsystem};
 
 pub struct GameServer {
     packets_to_process_rx: mpsc::Receiver<IpcMessage>,
@@ -29,7 +31,13 @@ impl GameServer {
         let jm = Arc::new(JsonManager::new("./data/json"));
         let lm = LoginManager::new(db.clone(), jm.clone(), packets_to_send_tx.clone());
         let lum = Arc::new(LuaManager::new("./data/lua"));
+
         let em = EntitySubsystem::new(lum.clone(), jm.clone(), db.clone(), packets_to_send_tx.clone());
+        let nt = NpcSubsystem::new(packets_to_send_tx.clone());
+        let ss = ShopSubsystem::new(jm.clone(), db.clone(), packets_to_send_tx.clone());
+        let scs = SceneSubsystem::new(packets_to_send_tx.clone());
+        let ps = PauseSubsystem::new(packets_to_send_tx.clone());
+        let socs = SocialSubsystem::new(db.clone(), packets_to_send_tx.clone());
 
         let gs = GameServer {
             packets_to_process_rx: packets_to_process_rx,
@@ -38,7 +46,7 @@ impl GameServer {
             login_manager: lm,
             database_manager: db.clone(),
             json_manager: jm.clone(),
-            processors: vec![Box::new(em)],
+            processors: vec![Box::new(em), Box::new(nt), Box::new(ss), Box::new(scs), Box::new(ps), Box::new(socs)],
         };
 
         return gs;
