@@ -137,7 +137,21 @@ impl DatabaseManager {
         return Some(props);
     }
 
-    pub fn get_player_prop(&self, uid: u32, prop_id: u32) -> Option<i64> {
+    pub fn get_player_level(&self, uid: u32) -> Option<u32> {
+        match self.get_player_prop(uid, proto::PropType::PropPlayerLevel as u32) {
+            Some(level) => Some(level as u32),
+            None => None,
+        }
+    }
+
+    pub fn get_player_world_level(&self, uid: u32) -> Option<u32> {
+        match self.get_player_prop(uid, proto::PropType::PropPlayerWorldLevel as u32) {
+            Some(level) => Some(level as u32),
+            None => None,
+        }
+    }
+
+    fn get_player_prop(&self, uid: u32, prop_id: u32) -> Option<i64> {
         match PlayerPropEntity::find().filter(
                 Condition::all()
                     .add(super::player_prop::Column::Uid.eq(uid))
@@ -175,7 +189,7 @@ impl DatabaseManager {
     }
 
     pub fn get_avatar_equip(&self, guid: i64) -> Option<Vec<i64>> {
-        let equip = vec![Self::SPOOFED_WEAPON_GUID];
+        let equip = vec![IdManager::get_guid_by_uid_and_id(AuthManager::SPOOFED_PLAYER_UID, Self::SPOOFED_WEAPON_ID) as i64];
 
         return Some(equip);
     }
@@ -324,7 +338,7 @@ impl DatabaseManager {
 
         let mut item = proto::Item::default();
         item.item_id = 11406;
-        item.guid = Self::SPOOFED_WEAPON_GUID as u64; // FIXME
+        item.guid = IdManager::get_guid_by_uid_and_id(uid, DatabaseManager::SPOOFED_WEAPON_ID); // FIXME
         item.detail = Some(proto::item::Detail::Equip(equip));
 
         return Some(vec![item]);
@@ -531,9 +545,10 @@ impl DatabaseManager {
         return tsi;
     }
 
-    const BASE_GUID: i64 = 0x2400000000000000;
-    const SPOOFED_AVATAR_GUID: i64 = Self::BASE_GUID + 1;
-    const SPOOFED_WEAPON_GUID: i64 = Self::BASE_GUID + 2;
-    const SPOOFED_SCENE_ID: u32 = 3;
+    pub const SPOOFED_AVATAR_ID: u32 = 1;
+    pub const SPOOFED_WEAPON_ID: u32 = 2;
+    const SPOOFED_SCENE_ID: u32 = 3; // TODO: that's a different kind of ID!
+    pub const SPOOFED_TEAM_ID: u32 = 4;
+    pub const SPOOFED_MP_LEVEL_ID: u32 = 5;
     const SPOOFED_SCENE_TOKEN: u32 = 0x1234;
 }
