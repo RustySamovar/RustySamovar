@@ -82,6 +82,7 @@ impl AvatarBuilder {
                     inherent_proud_skill_list: ips, //vec![72101, 72201],
                     skill_level_map: slm,
                     proud_skill_extra_level_map: fuck, //collection!{739 => 3, 732 => 3},
+                    wearing_flycloak_id: 140001, // TODO: hack!
                 });
         return ai;
     }

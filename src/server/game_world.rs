@@ -33,7 +33,6 @@ macro_rules! collection {
 
 #[packet_processor(
     PingReq,
-    GetPlayerSocialDetailReq,
     EnterSceneReadyReq,
     SceneInitFinishReq,
     EnterSceneDoneReq,
@@ -47,12 +46,6 @@ pub struct GameWorld {
 }
 
 impl GameWorld {
-    const BASE_GUID: u64 = 0x2400000000000000;
-    const SPOOFED_AVATAR_SUB_EID: u32 = 146;
-    const SPOOFED_WEAPON_SUB_EID: u32 = 146;
-    const SPOOFED_TEAM_SUB_ID: u32 = 1;
-    const SPOOFED_WEAPON_GUID: u64 = GameWorld::BASE_GUID + 2;
-
     pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameWorld {
         let mut gw = GameWorld {
             packets_to_send_tx: packets_to_send_tx,
@@ -68,45 +61,6 @@ impl GameWorld {
 
     fn process_ping(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::PingReq, rsp: &mut proto::PingRsp) {
         rsp.client_time = req.client_time;
-    }
-
-    fn process_get_player_social_detail(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::GetPlayerSocialDetailReq, rsp: &mut proto::GetPlayerSocialDetailRsp) {
-        let user = match self.db.get_player_info(user_id) {
-            Some(user) => user,
-            None => panic!("User {} not found!", user_id),
-        };
-
-        let props = self.db.get_player_props(user_id).unwrap_or_else(|| panic!("Failed to get properties for user {}!", user_id));
-
-        let user_level = props[&(proto::PropType::PropPlayerLevel as u32)] as u32;
-        let world_level = props[&(proto::PropType::PropPlayerWorldLevel as u32)] as u32;
-
-        let avatar_info = build!(SocialShowAvatarInfo {
-            avatar_id: user.avatar_id,
-            level: 80,
-        });
-
-        let details = build!(SocialDetail {
-            uid: user_id,
-            nickname: user.nick_name.clone(),
-            level: user_level,
-            avatar_id: user.avatar_id,
-            signature: user.signature.clone(),
-            birthday: Some(proto::Birthday {month: user.birthday.month(), day: user.birthday.day()}),
-            world_level: world_level,
-            online_state: proto::FriendOnlineState::FriendOnline as i32, // TODO
-            is_friend: true, // TODO
-            is_mp_mode_available: true, // TODO
-            name_card_id: user.namecard_id,
-            finish_achievement_num: user.finish_achievement_num, // TODO
-            tower_floor_index: user.tower_floor_index as u32,
-            tower_level_index: user.tower_level_index as u32,
-            show_avatar_info_list: vec![avatar_info], // TODO
-            show_name_card_id_list: vec![user.namecard_id], // TODO: add all namecards!
-            // Field 25!
-        });
-
-        rsp.detail_data = Some(details);
     }
 
     fn process_enter_scene_ready(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::EnterSceneReadyReq, rsp: &mut proto::EnterSceneReadyRsp) {
@@ -184,22 +138,26 @@ impl GameWorld {
        
         let avatar_enter_info = build!(AvatarEnterSceneInfo {
             avatar_guid: current_avatar_guid as u64, // FIXME
-            avatar_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, GameWorld::SPOOFED_AVATAR_SUB_EID),
-            weapon_guid: GameWorld::SPOOFED_WEAPON_GUID,
-            weapon_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, GameWorld::SPOOFED_WEAPON_SUB_EID),
+            avatar_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, DatabaseManager::SPOOFED_AVATAR_ID), // TODO
+            avatar_ability_info: Some(build!(AbilitySyncStateInfo {})),
+            weapon_guid: IdManager::get_guid_by_uid_and_id(user_id, DatabaseManager::SPOOFED_WEAPON_ID), // TODO
+            weapon_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, DatabaseManager::SPOOFED_WEAPON_ID), // TODO
+            weapon_ability_info: Some(build!(AbilitySyncStateInfo {})),
         });
         let mp_level_info = build!(MpLevelEntityInfo {
-            entity_id: 0xb000000 + 146,
+            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityMpLevel, DatabaseManager::SPOOFED_MP_LEVEL_ID), // TODO
             authority_peer_id: 1,
+            ability_info: Some(build!(AbilitySyncStateInfo {})),
         });
         let team_enter_info = build!(TeamEnterSceneInfo {
-            team_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityTeam, Self::SPOOFED_TEAM_SUB_ID),
+            team_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityTeam, DatabaseManager::SPOOFED_TEAM_ID), // TODO
+            team_ability_info: Some(build!(AbilitySyncStateInfo {})),
             });
 
         build_and_send!(self, user_id, metadata, PlayerEnterSceneInfoNotify {
             enter_scene_token: current_scene_info.scene_token,
             avatar_enter_info: vec![avatar_enter_info],
-            cur_avatar_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, GameWorld::SPOOFED_AVATAR_SUB_EID),
+            cur_avatar_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, DatabaseManager::SPOOFED_AVATAR_ID), // TODO
             mp_level_entity_info: Some(mp_level_info),
             team_enter_info: Some(team_enter_info),
         });
@@ -228,9 +186,9 @@ impl GameWorld {
             scene_id: current_scene_info.scene_id,
             player_uid: user_id,
             avatar_guid: current_avatar_guid as u64, // FIXME
-            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, GameWorld::SPOOFED_AVATAR_SUB_EID),
-            weapon_guid: GameWorld::SPOOFED_WEAPON_GUID,
-            weapon_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, GameWorld::SPOOFED_WEAPON_SUB_EID),
+            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, DatabaseManager::SPOOFED_AVATAR_ID),
+            weapon_guid: IdManager::get_guid_by_uid_and_id(user_id, DatabaseManager::SPOOFED_WEAPON_ID),
+            weapon_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, DatabaseManager::SPOOFED_WEAPON_ID),
             is_player_cur_avatar: true, // TODO
             scene_entity_info: Some(self.spoof_scene_default_avatar(user_id)),
             ability_control_block: Some(self.spoof_default_abilities()),
@@ -286,12 +244,13 @@ impl GameWorld {
         });
 
         let weapon = build!(SceneWeaponInfo {
-            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, Self::SPOOFED_WEAPON_SUB_EID),
+            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, DatabaseManager::SPOOFED_WEAPON_ID),
             gadget_id: 50011406, // TODO!
             item_id: 11406,
-            guid: GameWorld::SPOOFED_WEAPON_GUID,
+            guid: IdManager::get_guid_by_uid_and_id(user_id, DatabaseManager::SPOOFED_WEAPON_ID),
             level: 70,
             promote_level: 4,
+            ability_info: Some(build!(AbilitySyncStateInfo {})),
             affix_map: collection! { 111406 => 0 },
         });
 
@@ -308,6 +267,7 @@ impl GameWorld {
             proud_skill_extra_level_map: avatar_info.proud_skill_extra_level_map,
             equip_id_list: vec![11406], // TODO
             weapon: Some(weapon),
+            wearing_flycloak_id: 140001, // TODO
         });
 
         let scene_ai_info = build!(SceneEntityAiInfo {
@@ -318,13 +278,17 @@ impl GameWorld {
 
         let scene_entity_info = build!(SceneEntityInfo {
             entity_type: proto::ProtEntityType::ProtEntityAvatar as i32,
-            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, Self::SPOOFED_AVATAR_SUB_EID),
+            entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, DatabaseManager::SPOOFED_AVATAR_ID),
             life_state: 1,
             entity: Some(proto::scene_entity_info::Entity::Avatar(scene_avatar_info)),
             prop_list: Remapper::remap2(&current_avatar_props),
             fight_prop_list: Remapper::remap3(&current_avatar_fight_props),
             motion_info: Some(motion_info),
             entity_authority_info: Some(authority_info),
+            animator_para_list: vec![build!(AnimatorParameterValueInfoPair {
+                name_id: 0, // TODO: unknown!
+                animator_para: Some(build!(AnimatorParameterValueInfo {})),
+            })],
         });
 
         return scene_entity_info;

@@ -109,6 +109,7 @@ impl LoginManager {
             avatar_team_map: team_map,
             cur_avatar_team_id: current_team.into(),
             choose_avatar_guid: current_avatar as u64, // FIXME
+            owned_flycloak_list: vec![140001], // TODO!
         });
 
         build_and_send! (self, user_id, metadata, PlayerEnterSceneNotify {
