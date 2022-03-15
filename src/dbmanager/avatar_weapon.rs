@@ -3,26 +3,20 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "weapon_affix_info")]
+#[sea_orm(table_name = "avatar_weapon")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub guid: i64,
-    pub affix_id: u32,
-    pub affix_value: u32,
+    pub avatar_guid: i64,
+    pub weapon_guid: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-    Equip,
 }
 
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Equip => Entity::belongs_to(super::equip_info::Entity)
-                .from(Column::Guid)
-                .to(super::equip_info::Column::Guid)
-                .into(),
             _ => panic!("Unknown relation type!"),
         }
     }

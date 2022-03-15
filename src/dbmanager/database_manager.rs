@@ -1,6 +1,9 @@
 // Database Manager
 use std::collections::HashMap;
 
+#[macro_use]
+use packet_processor::*;
+
 use crate::collection;
 
 use sea_orm::{entity::*, error::*, query::*, DbConn, FromQueryResult, Database};
@@ -14,6 +17,12 @@ use super::player_info::Entity as PlayerInfoEntity;
 
 pub use super::avatar_info::Model as AvatarInfo;
 use super::avatar_info::Entity as AvatarInfoEntity;
+
+pub use super::avatar_weapon::Model as AvatarWeapon;
+use super::avatar_weapon::Entity as AvatarWeaponEntity;
+
+pub use super::avatar_reliquary::Model as AvatarReliquary;
+use super::avatar_reliquary::Entity as AvatarReliquaryEntity;
 
 pub use super::scene_info::Model as SceneInfo;
 use super::scene_info::Entity as SceneInfoEntity;
@@ -189,7 +198,26 @@ impl DatabaseManager {
     }
 
     pub fn get_avatar_equip(&self, guid: i64) -> Option<Vec<i64>> {
-        let equip = vec![IdManager::get_guid_by_uid_and_id(AuthManager::SPOOFED_PLAYER_UID, Self::SPOOFED_WEAPON_ID) as i64];
+        //let equip = vec![IdManager::get_guid_by_uid_and_id(AuthManager::SPOOFED_PLAYER_UID, Self::SPOOFED_WEAPON_ID) as i64];
+        let weapons = match AvatarWeaponEntity::find_by_id(guid).one(&self.db).wait() {
+            Err(_) => { panic!("DB ERROR!") },
+            Ok(weapon) => match weapon {
+                None => {
+                    println!("WARNING: no weapon for avatar {}!", guid);
+                    vec![]
+                },
+                Some(weapon) => vec![weapon.weapon_guid],
+            },
+        };
+
+        let relics = match AvatarReliquaryEntity::find_by_id(guid).all(&self.db).wait() {
+            Err(_) => { panic!("DB ERROR!") },
+            Ok(relics) => relics,
+        };
+
+        let relics = relics.into_iter().map(|r| r.reliquary_guid);
+
+        let equip = relics.chain(weapons.into_iter()).collect();
 
         return Some(equip);
     }
@@ -324,13 +352,12 @@ impl DatabaseManager {
 
         return Some(states);
     }
-
-    pub fn get_inventory(&self, uid: u32) -> Option<Vec<proto::Item>> {
-
+/*
+    pub fn _get_inventory(&self, uid: u32) -> Option<Vec<proto::Item>> {
         let mut weapon = proto::Weapon::default();
         weapon.level = 70;
         weapon.promote_level = 4;
-        weapon.affix_map = collection!{111406 => 0};
+        weapon.affix_map = collection! {111406 => 0};
 
         let mut equip = proto::Equip::default();
         equip.is_locked = true;
@@ -342,9 +369,9 @@ impl DatabaseManager {
         item.detail = Some(proto::item::Detail::Equip(equip));
 
         return Some(vec![item]);
+    }*/
 
-
-
+    pub fn get_inventory(&self, uid: u32) -> Option<Vec<proto::Item>> {
         /*
          Inventory item can be of three types: material, equip and furniture
          Equip is further divided into relic and weapon
@@ -354,7 +381,7 @@ impl DatabaseManager {
          3) Relics (+their properties)
          4) Weapons (+their affices)
          */
-        /*
+
         let items = match ItemInfoEntity::find_by_id(uid).all(&self.db).wait() {
             Err(e) => { panic!("DB ERROR: {}!", e) },
             Ok(items) => items,
@@ -366,7 +393,80 @@ impl DatabaseManager {
 
         let equip: Vec<(ItemInfo, EquipInfo)> = self.find_related_to_items(&items, EquipInfoEntity);
 
-        return None;*/
+        let materials = materials.into_iter().map(|(ii, mi)| {
+            build!(Item {
+                item_id: ii.item_id,
+                guid: ii.guid as u64, // TODO: figure out the correct type for goddamn GUIDs!
+                detail: Some(proto::item::Detail::Material(build!(Material {
+                    count: mi.count,
+                    // TODO: MaterialDeleteInfo!
+                }))),
+            })
+        });
+
+        let furniture = furniture.into_iter().map(|(ii, fi)| {
+            build!(Item {
+                item_id: ii.item_id,
+                guid: ii.guid as u64, // TODO: figure out the correct type for goddamn GUIDs!
+                detail: Some(proto::item::Detail::Furniture(build!(Furniture {
+                    count: fi.count,
+                }))),
+            })
+        });
+
+        let equip = equip.into_iter().map(|(ii, ei)| {
+            let reliquary = match ei.find_related(ReliquaryInfoEntity).one(&self.db).wait() {
+                Err(e) => { panic!("DB ERROR: {}!", e) },
+                Ok(data) => match data {
+                    None => None,
+                    Some(data) => {
+                        let props = match data.find_related(ReliquaryPropEntity).all(&self.db).wait() {
+                            Err(e) => { panic!("DB ERROR: {}!", e) },
+                            Ok(data) => data.into_iter().map(|rp| rp.prop_id).collect(),
+                        };
+
+                        Some(build!(Reliquary {
+                            level: ei.level,
+                            promote_level: ei.promote_level,
+                            exp: ei.exp,
+                            main_prop_id: data.main_prop_id,
+                            append_prop_id_list: props,
+                        }))
+                    }
+                },
+            };
+
+            let weapon = match ei.find_related(WeaponAffixInfoEntity).all(&self.db).wait() {
+                Err(e) => { panic!("DB ERROR: {}!", e) },
+                Ok(data) => Some(build!(Weapon {
+                    level: ei.level,
+                    promote_level: ei.promote_level,
+                    exp: ei.exp,
+                    affix_map: data.into_iter().map(|wai| (wai.affix_id, wai.affix_value)).collect(),
+                }))
+            };
+
+            let detail = if reliquary != None {
+                Some(proto::equip::Detail::Reliquary(reliquary.unwrap()))
+            } else if weapon != None {
+                Some(proto::equip::Detail::Weapon(weapon.unwrap()))
+            } else {
+                panic!("Equip item {} is not recognized as weapon or relic!", ii.guid)
+            };
+
+            build!(Item {
+                item_id: ii.item_id,
+                guid: ii.guid as u64, // TODO: figure out the correct type for goddamn GUIDs!
+                detail: Some(proto::item::Detail::Equip(build!(Equip {
+                    is_locked: ei.is_locked,
+                    detail: detail,
+                }))),
+            })
+        });
+
+        return Some(
+            materials.chain(furniture).chain(equip).collect()
+        );
     }
 
     fn find_related_to_items<T: sea_orm::EntityTrait>(&self, items: &Vec<ItemInfo>, entity_type: T) -> Vec<(ItemInfo, T::Model)>

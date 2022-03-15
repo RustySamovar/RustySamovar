@@ -21,6 +21,18 @@ pub enum Relation {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
+            Self::Material => Entity::belongs_to(super::material_info::Entity)
+                .from(Column::Guid)
+                .to(super::material_info::Column::Guid)
+                .into(),
+            Self::Equip => Entity::belongs_to(super::equip_info::Entity)
+                .from(Column::Guid)
+                .to(super::equip_info::Column::Guid)
+                .into(),
+            Self::Furniture => Entity::belongs_to(super::furniture_info::Entity)
+                .from(Column::Guid)
+                .to(super::furniture_info::Column::Guid)
+                .into(),
             _ => panic!("Unknown relation type!"),
         }
     }

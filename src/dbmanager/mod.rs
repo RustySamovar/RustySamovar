@@ -4,6 +4,8 @@ pub use self::database_manager::DatabaseManager;
 
 mod player_info;
 mod avatar_info;
+mod avatar_weapon;
+mod avatar_reliquary;
 mod scene_info;
 mod avatar_team_info;
 mod team_info;

@@ -18,6 +18,12 @@ pub enum Relation {
     Item,
 }
 
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum RelationOuter {
+    WeaponAffix,
+    Reliquary,
+}
+
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
@@ -27,6 +33,34 @@ impl RelationTrait for Relation {
                 .into(),
             _ => panic!("Unknown relation type!"),
         }
+    }
+}
+
+impl RelationTrait for RelationOuter {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::WeaponAffix => Entity::belongs_to(super::weapon_affix_info::Entity)
+                .from(Column::Guid)
+                .to(super::weapon_affix_info::Column::Guid)
+                .into(),
+            Self::Reliquary => Entity::belongs_to(super::reliquary_info::Entity)
+                .from(Column::Guid)
+                .to(super::reliquary_info::Column::Guid)
+                .into(),
+            _ => panic!("Unknown relation type!"),
+        }
+    }
+}
+
+impl Related<super::weapon_affix_info::Entity> for Entity {
+    fn to() -> RelationDef {
+        RelationOuter::WeaponAffix.def()
+    }
+}
+
+impl Related<super::reliquary_info::Entity> for Entity {
+    fn to() -> RelationDef {
+        RelationOuter::Reliquary.def()
     }
 }
 

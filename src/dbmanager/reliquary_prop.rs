@@ -12,11 +12,16 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
+    Reliquary,
 }
 
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
+            Self::Reliquary => Entity::belongs_to(super::reliquary_info::Entity)
+                .from(Column::Guid)
+                .to(super::reliquary_info::Column::Guid)
+                .into(),
             _ => panic!("Unknown relation type!"),
         }
     }
