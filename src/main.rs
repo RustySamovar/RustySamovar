@@ -12,6 +12,7 @@ mod utils;
 mod dbmanager;
 mod jsonmanager;
 mod luamanager;
+mod entitymanager;
 
 mod subsystems;
 
@@ -21,6 +22,7 @@ use dbmanager::DatabaseManager;
 use jsonmanager::JsonManager;
 use luamanager::LuaManager;
 use subsystems::EntitySubsystem;
+use entitymanager::EntityManager;
 
 fn main() {
     //pretty_env_logger::init();

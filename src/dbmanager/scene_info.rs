@@ -5,7 +5,7 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "scene_info")]
 pub struct Model {
-    #[sea_orm(primary_key)]
+    #[sea_orm(primary_key, autoincrement = false)]
     pub uid: u32,
     pub scene_id: u32,
     pub scene_token: u32,

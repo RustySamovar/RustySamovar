@@ -3,7 +3,7 @@ use std::result::Result;
 use std::sync::Arc;
 
 use crate::utils::IdManager;
-use crate::subsystems::entity_subsystem::{Entity, EntityTrait};
+use crate::entitymanager::{Entity, EntityTrait};
 
 use lua_serde::from_file;
 

@@ -9,28 +9,31 @@ use packet_processor_macro::*;
 #[macro_use]
 use packet_processor::*;
 
-use crate::DatabaseManager;
+use crate::{DatabaseManager, luamanager};
 use crate::JsonManager;
 
 use crate::utils::{AvatarBuilder, IdManager, Remapper};
 use crate::utils::TimeManager;
 
 use crate::dbmanager::database_manager::AvatarInfo as DbAvatarInfo;
+use crate::entitymanager::EntityManager;
 
 #[packet_processor(PlayerLoginReq)]
 pub struct LoginManager {
     packets_to_send_tx: mpsc::Sender<IpcMessage>,
     db: Arc<DatabaseManager>,
     jm: Arc<JsonManager>,
+    em: Arc<EntityManager>,
 }
 
 impl LoginManager {
-    pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> LoginManager {
+    pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>, em: Arc<EntityManager>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> LoginManager {
         let mut lm = LoginManager {
             packet_callbacks: HashMap::new(),
             packets_to_send_tx: packets_to_send_tx,
-            db: db.clone(),
-            jm: jm.clone(),
+            db: db,
+            jm: jm,
+            em: em,
         };
 
         lm.register();
@@ -112,16 +115,9 @@ impl LoginManager {
             owned_flycloak_list: vec![140001], // TODO!
         });
 
-        build_and_send! (self, user_id, metadata, PlayerEnterSceneNotify {
-            scene_id: scene_info.scene_id,
-            r#type: proto::EnterType::EnterSelf as i32,
-            scene_begin_time: TimeManager::timestamp(),
-            pos: Some(proto::Vector {x: scene_info.pos_x, y: scene_info.pos_y, z: scene_info.pos_z}),
-            target_uid: user_id,
-            world_level: world_level,
-            enter_scene_token: scene_info.scene_token,
-            //enter_reason: 1,
-        });
+        let pos = luamanager::Vector {x: scene_info.pos_x, y: scene_info.pos_y, z: scene_info.pos_z};
+
+        self.em.player_teleported(user_id, pos, scene_info.scene_id, scene_info.scene_token, &proto::EnterType::EnterSelf);
     }
 
     fn retrieve_team_info(&self, user_id: u32) -> HashMap<u32, proto::AvatarTeam> {

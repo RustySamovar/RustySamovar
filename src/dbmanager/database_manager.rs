@@ -1,3 +1,4 @@
+use num_traits::Signed;
 // Database Manager
 use std::collections::HashMap;
 
@@ -98,30 +99,66 @@ trait Insertable<A, E>: ActiveModelTrait<Entity = E>
         E::Model: IntoActiveModel<A>,
         E: EntityTrait,
 {
-    fn put(self, db: &DatabaseConnection, guid: i64) -> Result<E::Model, DbErr>
+    fn put(self, db: &DatabaseConnection) -> Result<E::Model, DbErr>
     {
         use std::str::FromStr;
-
-        E::insert_many(vec![self]).exec(db).wait()?;
 
         let column = match E::Column::from_str("guid") {
             Ok(column) => column,
             Err(_) => panic!("GUID column not found!"),
         };
 
+        let guid = self.get(column).unwrap();
+
+        E::insert(self).exec(db).wait()?;
+
         let item = E::find().filter(
             Condition::all()
-                .add(column.eq(guid))
+                .add(column.eq(guid.clone()))
         ).one(db).wait()?;
 
         match item {
             Some(item) => Ok(item), //Ok(item.into_active_model()),
-            None => Err(DbErr::Custom(format!("Failed to find inserted item: {}", guid)))
+            None => Err(DbErr::Custom(format!("Failed to find inserted item: {:?}", guid)))
         }
     }
 }
 
 impl<A,E> Insertable<A,E> for A
+    where
+        A: ActiveModelTrait<Entity = E>,
+        E::Model: IntoActiveModel<A>,
+        E: EntityTrait,
+{}
+
+/*
+  This is another hack to update all the fields of the record.
+  By default, Sea ORM only updates fields that are changed in ActiveModel.
+  As it is much more convenient to pass Model instead of ActiveModel around, we need this hack.
+ */
+
+trait FullyUpdateable<A, E>: ActiveModelTrait<Entity = E>
+    where
+        A: ActiveModelTrait<Entity = E>,
+        E::Model: IntoActiveModel<A>,
+        E: EntityTrait,
+{
+    fn full_update(mut self, db: &DatabaseConnection) -> Result<E::Model, DbErr>
+        where <E as sea_orm::EntityTrait>::Model: sea_orm::IntoActiveModel<Self>
+    {
+        for col in <<E as EntityTrait>::Column>::iter() {
+            let val = self.get(col);
+
+            self.set(col, val.unwrap());
+        }
+
+        let item: E::Model = E::update(self).exec(db).wait()?;
+
+        Ok(item)
+    }
+}
+
+impl<A,E> FullyUpdateable<A,E> for A
     where
         A: ActiveModelTrait<Entity = E>,
         E::Model: IntoActiveModel<A>,
@@ -649,6 +686,20 @@ impl DatabaseManager {
         return scene_info;
     }
 
+    pub fn update_player_scene_info(&self, scene_info: SceneInfo) {
+        let mut sc_info: super::scene_info::ActiveModel = scene_info.into();
+
+        /*for col in <<SceneInfoEntity as EntityTrait>::Column>::iter() {
+            let val = sc_info.get(col);
+
+            sc_info.set(col, val.unwrap());
+        }
+
+        println!("Updating scene info: {:?}", sc_info);*/
+
+        let sc_info: SceneInfo = sc_info.full_update(&self.db).unwrap();
+    }
+
     pub fn get_player_teams(&self, uid: u32) -> Option<Vec<TeamInfo>> {
         /*let t1 = TeamInfo {
             uid: uid.clone(),
@@ -759,7 +810,7 @@ impl DatabaseManager {
             promote_level: ActiveValue::Set(0), // TODO: 1?
         };
 
-        let eq_info: EquipInfo = eq_info.put(&self.db, new_guid as i64).unwrap();
+        let eq_info: EquipInfo = eq_info.put(&self.db).unwrap();
 
         let it_info  = super::item_info::ActiveModel {
             uid: ActiveValue::Set(uid),
@@ -767,7 +818,7 @@ impl DatabaseManager {
             item_id: ActiveValue::Set(item_id),
         };
 
-        let it_info: ItemInfo = it_info.put(&self.db, new_guid as i64).unwrap();
+        let it_info: ItemInfo = it_info.put(&self.db).unwrap();
 
         let detail = if self.jm.is_item_weapon(item_id) {
             let affixes: Vec<_> = self.jm.weapons[&item_id].skill_affix.iter()
@@ -800,7 +851,7 @@ impl DatabaseManager {
                 main_prop_id: ActiveValue::Set(main_stat),
             };
 
-            let re_info: ReliquaryInfo = re_info.put(&self.db, new_guid as i64).unwrap();
+            let re_info: ReliquaryInfo = re_info.put(&self.db).unwrap();
 
             let sub_stats_v: Vec<_> = sub_stats.clone().into_iter()
                 .map(|s| super::reliquary_prop::ActiveModel {
@@ -854,7 +905,7 @@ impl DatabaseManager {
                 item_id: ActiveValue::Set(item_id),
             };
 
-            let it_info: ItemInfo = it_info.put(&self.db, new_guid as i64).unwrap();
+            let it_info: ItemInfo = it_info.put(&self.db).unwrap();
 
             let detail = if self.jm.is_item_material(item_id) {
                 // Material
@@ -865,7 +916,7 @@ impl DatabaseManager {
                     // TODO: MaterialDeleteConfig!
                 };
 
-                let mt_info: MaterialInfo = mt_info.put(&self.db, new_guid as i64).unwrap();
+                let mt_info: MaterialInfo = mt_info.put(&self.db).unwrap();
 
                 proto::item::Detail::Material(build!(Material {
                     count: mt_info.count,
@@ -880,7 +931,7 @@ impl DatabaseManager {
                     count: ActiveValue::Set(count),
                 };
 
-                let fr_info: FurnitureInfo = fr_info.put(&self.db, new_guid as i64).unwrap();
+                let fr_info: FurnitureInfo = fr_info.put(&self.db).unwrap();
 
                 proto::item::Detail::Furniture(build!(Furniture {
                     count: fr_info.count,

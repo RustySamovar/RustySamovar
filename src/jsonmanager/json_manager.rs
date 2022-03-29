@@ -12,6 +12,7 @@ use crate::jsonmanager::material::Material;
 use crate::jsonmanager::reliquary::{Reliquary, ReliquaryAffix, ReliquaryMainProp};
 use crate::jsonmanager::shop_goods::ShopGoods;
 use crate::jsonmanager::shop_rotate::ShopRotate;
+use crate::jsonmanager::teleport_point::TeleportPoint;
 use crate::jsonmanager::weapon::Weapon;
 
 use super::avatar_skill_depot::AvatarSkillDepot;
@@ -54,6 +55,8 @@ pub struct JsonManager {
     pub reliquary_affixes: HashMap<u32, Vec<ReliquaryAffix>>,
 
     pub materials: HashMap<u32, Material>,
+
+    pub teleport_points: HashMap<u32, HashMap<u32, TeleportPoint>>,
 }
 
 impl std::fmt::Debug for JsonManager { // TODO: fucking hack!
@@ -66,23 +69,25 @@ impl JsonManager {
     pub fn new(directory: &str) -> JsonManager {
         let reader = JsonReader::new(directory);
 
-        let asd: Vec<AvatarSkillDepot> = reader.read_json_list("AvatarSkillDepot");
-        let mc: Vec<EntityCurve> = reader.read_json_list("MonsterCurve");
-        let monsters: Vec<Monster> = reader.read_json_list("Monster");
-        let world_levels: Vec<WorldLevel> = reader.read_json_list("WorldLevel");
-        let gadget_props: Vec<GadgetProp> = reader.read_json_list("GadgetProp");
-        let gc: Vec<EntityCurve> = reader.read_json_list("GadgetCurve");
-        let gathers: Vec<Gather> = reader.read_json_list("Gather");
-        let shop_goods: Vec<ShopGoods> = reader.read_json_list("ShopGoods");
-        let shop_rotate: Vec<ShopRotate> = reader.read_json_list("ShopRotate");
-        let weapons: Vec<Weapon> = reader.read_json_list("Weapon");
+        let asd: Vec<AvatarSkillDepot> = reader.read_json_list_game("AvatarSkillDepot");
+        let mc: Vec<EntityCurve> = reader.read_json_list_game("MonsterCurve");
+        let monsters: Vec<Monster> = reader.read_json_list_game("Monster");
+        let world_levels: Vec<WorldLevel> = reader.read_json_list_game("WorldLevel");
+        let gadget_props: Vec<GadgetProp> = reader.read_json_list_game("GadgetProp");
+        let gc: Vec<EntityCurve> = reader.read_json_list_game("GadgetCurve");
+        let gathers: Vec<Gather> = reader.read_json_list_game("Gather");
+        let shop_goods: Vec<ShopGoods> = reader.read_json_list_game("ShopGoods");
+        let shop_rotate: Vec<ShopRotate> = reader.read_json_list_game("ShopRotate");
+        let weapons: Vec<Weapon> = reader.read_json_list_game("Weapon");
 
-        let reliquaries: Vec<Reliquary> = reader.read_json_list("Reliquary");
+        let reliquaries: Vec<Reliquary> = reader.read_json_list_game("Reliquary");
 
-        let reliquary_main_prop_depot : Vec<ReliquaryMainProp> = reader.read_json_list("ReliquaryMainProp");
-        let reliquary_affixes : Vec<ReliquaryAffix> = reader.read_json_list("ReliquaryAffix");
+        let reliquary_main_prop_depot : Vec<ReliquaryMainProp> = reader.read_json_list_game("ReliquaryMainProp");
+        let reliquary_affixes : Vec<ReliquaryAffix> = reader.read_json_list_game("ReliquaryAffix");
 
-        let materials: Vec<Material> = reader.read_json_list("Material");
+        let materials: Vec<Material> = reader.read_json_list_game("Material");
+
+        let teleport_points: Vec<TeleportPoint> = reader.read_json_list_3rdparty("TeleportPoints");
 
         return JsonManager {
             reader: reader,
@@ -106,6 +111,10 @@ impl JsonManager {
                 .collect(), // TODO: we're grouping by depot_id!
 
             materials: materials.into_iter().map(|m| (m.id, m)).collect(),
+
+            teleport_points: group_nonconsec_by(teleport_points, |tp| tp.scene_id).into_iter()
+                .map(|(scene_id, tp_list)| (scene_id, tp_list.into_iter().map(|tp| (tp.point_id, tp)).collect()))
+                .collect(),
         };
     }
 
@@ -152,14 +161,26 @@ impl JsonReader {
         };
     }
 
-    fn read_json_list<T>(&self, name: &str) -> Vec<T>
+    fn read_json_list<T>(&self, name: &str, subpath: &str) -> Vec<T>
         where T: DeserializeOwned
     {
-        let path = format!("{}/{}ExcelConfigData.json", self.base_path, name);
+        let path = format!("{}/{}/{}.json", self.base_path, subpath, name);
 
         let json_file_path = Path::new(&path);
         let json_file_str = read_to_string(json_file_path).unwrap_or_else(|_| panic!("File {} not found", path));
         let data: Vec<T> = serde_json::from_str(&json_file_str).expect(&format!("Error while reading json {}", name));
         return data;
+    }
+
+    fn read_json_list_game<T>(&self, name: &str) -> Vec<T>
+        where T: DeserializeOwned
+    {
+        self.read_json_list(&format!("{}ExcelConfigData", name), "game")
+    }
+
+    fn read_json_list_3rdparty<T>(&self, name: &str) -> Vec<T>
+        where T: DeserializeOwned
+    {
+        self.read_json_list(name, "thirdparty")
     }
 }

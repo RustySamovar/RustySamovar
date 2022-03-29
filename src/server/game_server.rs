@@ -12,8 +12,9 @@ use crate::JsonManager;
 use crate::LuaManager;
 use crate::server::LoginManager;
 use std::sync::Arc;
+use crate::entitymanager::EntityManager;
 use crate::subsystems::{InventorySubsystem, NpcSubsystem, ShopSubsystem};
-use crate::subsystems::misc::{PauseSubsystem, SceneSubsystem, SocialSubsystem};
+use crate::subsystems::misc::{PauseSubsystem, SceneSubsystem, SocialSubsystem, TeleportSubsystem};
 
 pub struct GameServer {
     packets_to_process_rx: mpsc::Receiver<IpcMessage>,
@@ -29,17 +30,19 @@ impl GameServer {
     pub fn new(packets_to_process_rx: mpsc::Receiver<IpcMessage>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameServer {
         let jm = Arc::new(JsonManager::new("./data/json"));
         let db = Arc::new(DatabaseManager::new("sqlite://./database.db3", jm.clone()));
-        let lm = LoginManager::new(db.clone(), jm.clone(), packets_to_send_tx.clone());
         let lum = Arc::new(LuaManager::new("./data/lua"));
+        let em = Arc::new(EntityManager::new(lum.clone(),jm.clone(), db.clone(), packets_to_send_tx.clone()));
+        let lm = LoginManager::new(db.clone(), jm.clone(), em.clone(),packets_to_send_tx.clone());
 
         let inv = Arc::new(InventorySubsystem::new(jm.clone(), db.clone(), packets_to_send_tx.clone()));
 
-        let em = EntitySubsystem::new(lum.clone(), jm.clone(), db.clone(), packets_to_send_tx.clone());
+        let es = EntitySubsystem::new(lum.clone(), jm.clone(), db.clone(), em.clone(), packets_to_send_tx.clone());
         let nt = NpcSubsystem::new(packets_to_send_tx.clone());
         let ss = ShopSubsystem::new(jm.clone(), db.clone(), inv.clone(), packets_to_send_tx.clone());
         let scs = SceneSubsystem::new(packets_to_send_tx.clone());
         let ps = PauseSubsystem::new(packets_to_send_tx.clone());
         let socs = SocialSubsystem::new(db.clone(), packets_to_send_tx.clone());
+        let ts = TeleportSubsystem::new(jm.clone(), db.clone(), em.clone(), packets_to_send_tx.clone());
 
         let gs = GameServer {
             packets_to_process_rx: packets_to_process_rx,
@@ -48,7 +51,7 @@ impl GameServer {
             login_manager: lm,
             database_manager: db.clone(),
             json_manager: jm.clone(),
-            processors: vec![Box::new(em), Box::new(nt), Box::new(ss), Box::new(scs), Box::new(ps), Box::new(socs)],
+            processors: vec![Box::new(es), Box::new(nt), Box::new(ss), Box::new(scs), Box::new(ps), Box::new(socs), Box::new(ts)],
         };
 
         return gs;

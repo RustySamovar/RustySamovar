@@ -13,6 +13,7 @@ mod shop_rotate;
 mod weapon;
 mod reliquary;
 mod material;
+mod teleport_point;
 
 pub use entity_curve::{CurveInfo,EntityCurve};
 pub use shop_goods::ShopGoods;
