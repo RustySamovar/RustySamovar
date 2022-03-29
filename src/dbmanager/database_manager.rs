@@ -101,25 +101,29 @@ trait Insertable<A, E>: ActiveModelTrait<Entity = E>
 {
     fn put(self, db: &DatabaseConnection) -> Result<E::Model, DbErr>
     {
-        use std::str::FromStr;
+        // Enumerate every primary key and construct a list of equality conditions
+        let conditions: Vec<_> = <Self::Entity as EntityTrait>::PrimaryKey::iter()
+            .map(|key| {
+                let col = key.into_column();
+                let pk = self.get(col).unwrap();
+                col.eq(pk.clone())
+            })
+            .collect();
 
-        let column = match E::Column::from_str("guid") {
-            Ok(column) => column,
-            Err(_) => panic!("GUID column not found!"),
-        };
+        // Put them all together
+        let mut condition =  Condition::all();
 
-        let guid = self.get(column).unwrap();
+        for c in conditions {
+            condition = condition.add(c);
+        }
 
         E::insert(self).exec(db).wait()?;
 
-        let item = E::find().filter(
-            Condition::all()
-                .add(column.eq(guid.clone()))
-        ).one(db).wait()?;
+        let item = E::find().filter(condition.clone()).one(db).wait()?;
 
         match item {
             Some(item) => Ok(item), //Ok(item.into_active_model()),
-            None => Err(DbErr::Custom(format!("Failed to find inserted item: {:?}", guid)))
+            None => Err(DbErr::Custom(format!("Failed to find inserted item: {:?}", condition)))
         }
     }
 }
