@@ -4,9 +4,15 @@ use std::collections::{HashMap, BTreeMap};
 
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
+
+use rand::{seq::IteratorRandom, thread_rng};
+
 use crate::jsonmanager::gather::Gather;
+use crate::jsonmanager::material::Material;
+use crate::jsonmanager::reliquary::{Reliquary, ReliquaryAffix, ReliquaryMainProp};
 use crate::jsonmanager::shop_goods::ShopGoods;
 use crate::jsonmanager::shop_rotate::ShopRotate;
+use crate::jsonmanager::weapon::Weapon;
 
 use super::avatar_skill_depot::AvatarSkillDepot;
 use super::entity_curve::EntityCurve;
@@ -41,6 +47,13 @@ pub struct JsonManager {
     pub gathers: HashMap<u32, Gather>,
     pub shop_goods: HashMap<u32, Vec<ShopGoods>>,
     pub shop_rotate: HashMap<u32, Vec<ShopRotate>>,
+    pub weapons: HashMap<u32, Weapon>,
+    pub reliquaries: HashMap<u32, Reliquary>,
+
+    pub reliquary_main_prop_depot: HashMap<u32, Vec<ReliquaryMainProp>>,
+    pub reliquary_affixes: HashMap<u32, Vec<ReliquaryAffix>>,
+
+    pub materials: HashMap<u32, Material>,
 }
 
 impl std::fmt::Debug for JsonManager { // TODO: fucking hack!
@@ -62,6 +75,14 @@ impl JsonManager {
         let gathers: Vec<Gather> = reader.read_json_list("Gather");
         let shop_goods: Vec<ShopGoods> = reader.read_json_list("ShopGoods");
         let shop_rotate: Vec<ShopRotate> = reader.read_json_list("ShopRotate");
+        let weapons: Vec<Weapon> = reader.read_json_list("Weapon");
+
+        let reliquaries: Vec<Reliquary> = reader.read_json_list("Reliquary");
+
+        let reliquary_main_prop_depot : Vec<ReliquaryMainProp> = reader.read_json_list("ReliquaryMainProp");
+        let reliquary_affixes : Vec<ReliquaryAffix> = reader.read_json_list("ReliquaryAffix");
+
+        let materials: Vec<Material> = reader.read_json_list("Material");
 
         return JsonManager {
             reader: reader,
@@ -76,7 +97,51 @@ impl JsonManager {
                 .collect(),
             shop_rotate: group_nonconsec_by(shop_rotate, |sr| sr.rotate_id).into_iter() // TODO: we're grouping by rotate_id, not by ID!
                 .collect(),
+            weapons: weapons.into_iter().map(|w| (w.id, w)).collect(),
+            reliquaries: reliquaries.into_iter().map(|r| (r.id, r)).collect(),
+
+            reliquary_main_prop_depot: group_nonconsec_by(reliquary_main_prop_depot, |mp| mp.prop_depot_id).into_iter()
+                .collect(), // TODO: we're grouping by depot_id!
+            reliquary_affixes: group_nonconsec_by(reliquary_affixes, |a| a.depot_id).into_iter()
+                .collect(), // TODO: we're grouping by depot_id!
+
+            materials: materials.into_iter().map(|m| (m.id, m)).collect(),
         };
+    }
+
+    pub fn is_item_weapon(&self, item_id: u32) -> bool {
+        return self.weapons.contains_key(&item_id)
+    }
+
+    pub fn is_item_reliquary(&self, item_id: u32) -> bool {
+        return self.reliquaries.contains_key(&item_id)
+    }
+
+    pub fn is_item_material(&self, item_id: u32) -> bool {
+        return self.materials.contains_key(&item_id)
+    }
+
+    // TODO: I'm not sure those two methods should belongs here!
+    pub fn roll_reliquary_stats_by_item_id(&self, item_id: u32) -> (u32, Vec<u32>) {
+        let reliquary = match self.reliquaries.get(&item_id) {
+            None => panic!("Rolling for stats of item {} which is not in reliquary dict!", item_id),
+            Some(reliquary) => reliquary,
+        };
+
+        return self.roll_reliquary_stats(reliquary.main_prop_depot_id, reliquary.append_prop_depot_id, reliquary.append_prop_num);
+    }
+
+    pub fn roll_reliquary_stats(&self, main_depot_id: u32, affix_depot_id: u32, num_affices: usize) -> (u32, Vec<u32>) {
+        let mut rng = rand::thread_rng();
+
+        let main_depot = &self.reliquary_main_prop_depot[&main_depot_id];
+        let affix_depot = &self.reliquary_affixes[&affix_depot_id];
+
+        let main_stat = main_depot.iter().choose(&mut rng).unwrap().id;
+
+        let sub_stats: Vec<u32> = affix_depot.iter().choose_multiple(&mut rng, num_affices).iter().map(|a| a.id).collect(); // TODO: roll without weights!
+
+        return (main_stat, sub_stats);
     }
 }
 
