@@ -15,6 +15,7 @@ use packet_processor_macro::*;
 use packet_processor::*;
 use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
+use crate::subsystems::InventorySubsystem;
 use crate::utils::{IdManager, TimeManager};
 
 #[packet_processor(
@@ -25,15 +26,17 @@ pub struct ShopSubsystem {
     packets_to_send_tx: Sender<IpcMessage>,
     json_manager: Arc<JsonManager>,
     db_manager: Arc<DatabaseManager>,
+    inventory: Arc<InventorySubsystem>,
 }
 
 impl ShopSubsystem {
-    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, packets_to_send_tx: Sender<IpcMessage>) -> Self {
+    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, inv: Arc<InventorySubsystem>, packets_to_send_tx: Sender<IpcMessage>) -> Self {
         let mut ss = Self {
             packets_to_send_tx: packets_to_send_tx,
             packet_callbacks: HashMap::new(),
             json_manager: jm.clone(),
             db_manager: db.clone(),
+            inventory: inv.clone(),
         };
 
         ss.register();
@@ -113,7 +116,39 @@ impl ShopSubsystem {
     }
 
     fn process_buy_goods(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::BuyGoodsReq, rsp: &mut proto::BuyGoodsRsp) {
+        // Buying goods can produce the following packets:
+        // 1) Response packet
+        // 2) AddHintNotify (to show nice graphical image to user)
+        // 3) StoreItemChangeNotify for this particular item
+        // 4) StoreItemChangeNotify/StoreItemDelNotify depending on the currency used
 
+        // TODO: client performs checks on it's side to make sure player don't buy extra or have enough currency;
+        // but it's a good idea to check everything too
+        // Also, we don't have any 'state' yet, so we never gonna run "out of stock"
+
+        // Retrieve goods in question
+        let mut good = req.goods.clone().unwrap();
+
+        good.bought_num = req.buy_count;
+
+        // First, confirm buying goods
+        // TODO: in all the packets I've seen so far goods_list only contains one item identical to goods field. Is this always the case?
+        rsp.shop_type = req.shop_type;
+        rsp.buy_count = req.buy_count;
+        rsp.goods = Some(good.clone());
+        rsp.goods_list = vec![good.clone()];
+
+        let goods_item = good.goods_item.as_ref().unwrap();
+
+        let total_count = goods_item.count * req.buy_count;
+
+        // Ok, now add item to user's inventory and show nice graphical hint
+        self.inventory.add_item(user_id, metadata, goods_item.item_id, total_count, &proto::ActionReasonType::ActionReasonShop, true);
+
+        // Tell the client to update / delete currency used
+
+        // TODO!
+        //self.inventory.sub_item(user_id, metadata, good.goods_item.as_ref().unwrap().item_id, req.buy_count, &proto::ActionReasonType::ActionReasonShop);
     }
 
     fn get_shop_refresh_time(&self, shop_type: u32, item_id: u32) -> u32 {

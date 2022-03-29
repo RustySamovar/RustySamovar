@@ -12,7 +12,7 @@ use crate::JsonManager;
 use crate::LuaManager;
 use crate::server::LoginManager;
 use std::sync::Arc;
-use crate::subsystems::{NpcSubsystem, ShopSubsystem};
+use crate::subsystems::{InventorySubsystem, NpcSubsystem, ShopSubsystem};
 use crate::subsystems::misc::{PauseSubsystem, SceneSubsystem, SocialSubsystem};
 
 pub struct GameServer {
@@ -27,14 +27,16 @@ pub struct GameServer {
 
 impl GameServer {
     pub fn new(packets_to_process_rx: mpsc::Receiver<IpcMessage>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameServer {
-        let db = Arc::new(DatabaseManager::new("sqlite://./database.db3"));
         let jm = Arc::new(JsonManager::new("./data/json"));
+        let db = Arc::new(DatabaseManager::new("sqlite://./database.db3", jm.clone()));
         let lm = LoginManager::new(db.clone(), jm.clone(), packets_to_send_tx.clone());
         let lum = Arc::new(LuaManager::new("./data/lua"));
 
+        let inv = Arc::new(InventorySubsystem::new(jm.clone(), db.clone(), packets_to_send_tx.clone()));
+
         let em = EntitySubsystem::new(lum.clone(), jm.clone(), db.clone(), packets_to_send_tx.clone());
         let nt = NpcSubsystem::new(packets_to_send_tx.clone());
-        let ss = ShopSubsystem::new(jm.clone(), db.clone(), packets_to_send_tx.clone());
+        let ss = ShopSubsystem::new(jm.clone(), db.clone(), inv.clone(), packets_to_send_tx.clone());
         let scs = SceneSubsystem::new(packets_to_send_tx.clone());
         let ps = PauseSubsystem::new(packets_to_send_tx.clone());
         let socs = SocialSubsystem::new(db.clone(), packets_to_send_tx.clone());
