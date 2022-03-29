@@ -1,6 +1,8 @@
 // Database Manager
 use std::collections::HashMap;
 
+use std::sync::Arc;
+
 #[macro_use]
 use packet_processor::*;
 
@@ -70,6 +72,9 @@ use super::reliquary_prop::Entity as ReliquaryPropEntity;
 pub use super::furniture_info::Model as FurnitureInfo;
 use super::furniture_info::Entity as FurnitureInfoEntity;
 
+/*
+  This is used to convert async operations into sync ones
+ */
 trait Block {
     fn wait(self) -> <Self as futures::Future>::Output
         where Self: Sized, Self: futures::Future
@@ -82,15 +87,62 @@ impl<F,T> Block for F
     where F: futures::Future<Output = T>
 {}
 
+/*
+  This is a hack around inserting a single item into database.
+  Sea-orm's implementation doesn't work if the primary key is not "autoincrement", which is our case.
+ */
+
+trait Insertable<A, E>: ActiveModelTrait<Entity = E>
+    where
+        A: ActiveModelTrait<Entity = E>,
+        E::Model: IntoActiveModel<A>,
+        E: EntityTrait,
+{
+    fn put(self, db: &DatabaseConnection, guid: i64) -> Result<E::Model, DbErr>
+    {
+        use std::str::FromStr;
+
+        E::insert_many(vec![self]).exec(db).wait()?;
+
+        let column = match E::Column::from_str("guid") {
+            Ok(column) => column,
+            Err(_) => panic!("GUID column not found!"),
+        };
+
+        let item = E::find().filter(
+            Condition::all()
+                .add(column.eq(guid))
+        ).one(db).wait()?;
+
+        match item {
+            Some(item) => Ok(item), //Ok(item.into_active_model()),
+            None => Err(DbErr::Custom(format!("Failed to find inserted item: {}", guid)))
+        }
+    }
+}
+
+impl<A,E> Insertable<A,E> for A
+    where
+        A: ActiveModelTrait<Entity = E>,
+        E::Model: IntoActiveModel<A>,
+        E: EntityTrait,
+{}
+
+/*
+  Database manager itself
+ */
+
 #[derive(Debug)]
 pub struct DatabaseManager {
     db: DbConn,
+    jm: Arc<JsonManager>,
 }
 
 impl DatabaseManager {
-    pub fn new(conn_string: &str) -> Self {
+    pub fn new(conn_string: &str, jm: Arc<JsonManager>) -> Self {
         return DatabaseManager {
             db: Database::connect(conn_string).wait().unwrap(),
+            jm: jm.clone(),
         };
     }
 
@@ -371,6 +423,17 @@ impl DatabaseManager {
         return Some(vec![item]);
     }*/
 
+    pub fn get_items_by_item_id(&self, uid: u32, item_id: u32) -> Vec<ItemInfo> {
+        match ItemInfoEntity::find().filter(
+            Condition::all()
+                .add(super::item_info::Column::Uid.eq(uid))
+                .add(super::item_info::Column::ItemId.eq(item_id))
+        ).all(&self.db).wait() {
+            Err(e) => { panic!("DB ERROR: {}!", e) },
+            Ok(data) => data,
+        }
+    }
+
     pub fn get_inventory(&self, uid: u32) -> Option<Vec<proto::Item>> {
         /*
          Inventory item can be of three types: material, equip and furniture
@@ -382,7 +445,12 @@ impl DatabaseManager {
          4) Weapons (+their affices)
          */
 
-        let items = match ItemInfoEntity::find_by_id(uid).all(&self.db).wait() {
+        let request = ItemInfoEntity::find().filter(
+            Condition::all()
+                .add(super::item_info::Column::Uid.eq(uid)
+                )).all(&self.db).wait();
+
+        let items = match request {
             Err(e) => { panic!("DB ERROR: {}!", e) },
             Ok(items) => items,
         };
@@ -415,11 +483,12 @@ impl DatabaseManager {
         });
 
         let equip = equip.into_iter().map(|(ii, ei)| {
-            let reliquary = match ei.find_related(ReliquaryInfoEntity).one(&self.db).wait() {
-                Err(e) => { panic!("DB ERROR: {}!", e) },
-                Ok(data) => match data {
-                    None => None,
-                    Some(data) => {
+            let detail = if self.jm.is_item_reliquary(ii.item_id) {
+                let reliquary = match ei.find_related(ReliquaryInfoEntity).one(&self.db).wait() {
+                    Err(e) => { panic!("DB ERROR: {}!", e) },
+                    Ok(data) => {
+                        let data = data.unwrap();
+
                         let props = match data.find_related(ReliquaryPropEntity).all(&self.db).wait() {
                             Err(e) => { panic!("DB ERROR: {}!", e) },
                             Ok(data) => data.into_iter().map(|rp| rp.prop_id).collect(),
@@ -432,26 +501,24 @@ impl DatabaseManager {
                             main_prop_id: data.main_prop_id,
                             append_prop_id_list: props,
                         }))
-                    }
-                },
-            };
+                    },
+                };
 
-            let weapon = match ei.find_related(WeaponAffixInfoEntity).all(&self.db).wait() {
-                Err(e) => { panic!("DB ERROR: {}!", e) },
-                Ok(data) => Some(build!(Weapon {
-                    level: ei.level,
-                    promote_level: ei.promote_level,
-                    exp: ei.exp,
-                    affix_map: data.into_iter().map(|wai| (wai.affix_id, wai.affix_value)).collect(),
-                }))
-            };
-
-            let detail = if reliquary != None {
                 Some(proto::equip::Detail::Reliquary(reliquary.unwrap()))
-            } else if weapon != None {
+            } else if self.jm.is_item_weapon(ii.item_id) {
+                let weapon = match ei.find_related(WeaponAffixInfoEntity).all(&self.db).wait() {
+                    Err(e) => { panic!("DB ERROR: {}!", e) },
+                    Ok(data) => Some(build!(Weapon {
+                        level: ei.level,
+                        promote_level: ei.promote_level,
+                        exp: ei.exp,
+                        affix_map: data.into_iter().map(|wai| (wai.affix_id, wai.affix_value)).collect(),
+                    })),
+                };
+
                 Some(proto::equip::Detail::Weapon(weapon.unwrap()))
             } else {
-                panic!("Equip item {} is not recognized as weapon or relic!", ii.guid)
+                panic!("Equip item {} is not recognized as a weapon or relic: {:?} {:?}!", ii.guid, ii, ei)
             };
 
             build!(Item {
@@ -467,6 +534,32 @@ impl DatabaseManager {
         return Some(
             materials.chain(furniture).chain(equip).collect()
         );
+    }
+
+    pub fn get_item_count_by_item_id(&self, uid: u32, item_id: u32) -> u32 {
+        let items = self.get_items_by_item_id(uid, item_id);
+
+        let materials: Vec<(ItemInfo, MaterialInfo)> = self.find_related_to_items(&items, MaterialInfoEntity);
+
+        let furniture: Vec<(ItemInfo, FurnitureInfo)> = self.find_related_to_items(&items, FurnitureInfoEntity);
+
+        let equip: Vec<(ItemInfo, EquipInfo)> = self.find_related_to_items(&items, EquipInfoEntity);
+
+        if materials.len() > 0 {
+            assert!(materials.len() == 1);
+            return materials[0].1.count;
+        }
+
+        if furniture.len() > 0 {
+            assert!(furniture.len() == 1);
+            return furniture[0].1.count;
+        }
+
+        if equip.len() > 0 {
+            return equip.len() as u32;
+        }
+
+        return 0;
     }
 
     fn find_related_to_items<T: sea_orm::EntityTrait>(&self, items: &Vec<ItemInfo>, entity_type: T) -> Vec<(ItemInfo, T::Model)>
@@ -643,6 +736,263 @@ impl DatabaseManager {
         };
 
         return tsi;
+    }
+
+    pub fn get_new_guid(&self, uid: u32) -> u64 {
+        use rand::Rng;
+
+        let id = rand::thread_rng().gen(); // TODO: use something more sophisticated!
+
+        IdManager::get_guid_by_uid_and_id(uid, id)
+    }
+
+    pub fn add_equip(&self, uid: u32, item_id: u32) -> Option<proto::Item> {
+        assert!(self.jm.is_item_weapon(item_id) || self.jm.is_item_reliquary(item_id));
+
+        let new_guid = self.get_new_guid(uid);
+
+        let eq_info = super::equip_info::ActiveModel {
+            guid: ActiveValue::Set(new_guid as i64),
+            is_locked: ActiveValue::Set(false),
+            level: ActiveValue::Set(1),
+            exp: ActiveValue::Set(0),
+            promote_level: ActiveValue::Set(0), // TODO: 1?
+        };
+
+        let eq_info: EquipInfo = eq_info.put(&self.db, new_guid as i64).unwrap();
+
+        let it_info  = super::item_info::ActiveModel {
+            uid: ActiveValue::Set(uid),
+            guid: ActiveValue::Set(new_guid as i64),
+            item_id: ActiveValue::Set(item_id),
+        };
+
+        let it_info: ItemInfo = it_info.put(&self.db, new_guid as i64).unwrap();
+
+        let detail = if self.jm.is_item_weapon(item_id) {
+            let affixes: Vec<_> = self.jm.weapons[&item_id].skill_affix.iter()
+                .filter(|a| **a != 0)
+                .map(|a| super::weapon_affix_info::ActiveModel {
+                    guid: ActiveValue::Set(new_guid as i64),
+                    affix_id: ActiveValue::Set(*a),
+                    affix_value: ActiveValue::Set(0),
+                })
+                .collect();
+
+            if affixes.len() > 0 {
+                WeaponAffixInfoEntity::insert_many(affixes.clone()).exec(&self.db).wait().unwrap();
+            }
+
+            let weapon = build!(Weapon {
+                level: eq_info.level,
+                promote_level: eq_info.promote_level,
+                exp: eq_info.exp,
+                affix_map: affixes.into_iter().map(|wai| (wai.affix_id.unwrap(), wai.affix_value.unwrap())).collect(),
+            });
+
+            Some(proto::equip::Detail::Weapon(weapon))
+        } else if self.jm.is_item_reliquary(item_id) {
+            // TODO: roll for main & append reliquary properties!
+            let (main_stat, sub_stats) = self.jm.roll_reliquary_stats_by_item_id(item_id);
+
+            let re_info = super::reliquary_info::ActiveModel {
+                guid: ActiveValue::Set(new_guid as i64),
+                main_prop_id: ActiveValue::Set(main_stat),
+            };
+
+            let re_info: ReliquaryInfo = re_info.put(&self.db, new_guid as i64).unwrap();
+
+            let sub_stats_v: Vec<_> = sub_stats.clone().into_iter()
+                .map(|s| super::reliquary_prop::ActiveModel {
+                    guid: ActiveValue::Set(new_guid as i64),
+                    prop_id: ActiveValue::Set(s),
+                })
+                .collect();
+
+            if sub_stats_v.len() > 0 {
+                ReliquaryPropEntity::insert_many(sub_stats_v).exec(&self.db).wait().unwrap();
+            }
+
+            let reliquary = build!(Reliquary {
+                level: eq_info.level,
+                promote_level: eq_info.promote_level,
+                exp: eq_info.exp,
+                main_prop_id: main_stat,
+                append_prop_id_list: sub_stats,
+            });
+
+            Some(proto::equip::Detail::Reliquary(reliquary))
+        } else {
+            panic!("Equip item {} is not recognized as a weapon or relic!", item_id)
+        };
+
+        let item = build!(Item {
+            guid: new_guid,
+            item_id: item_id,
+            detail: Some(proto::item::Detail::Equip(build!(Equip {
+                is_locked: eq_info.is_locked,
+                detail: detail,
+            }))),
+        });
+
+        return Some(item);
+    }
+
+    pub fn add_stackable(&self, uid: u32, item_id: u32, count: i32) -> Option<proto::Item> {
+        let items_list = self.get_items_by_item_id(uid, item_id);
+
+        let (guid, detail) = if items_list.len() == 0 {
+            assert!(count > 0);
+            let count: u32 = count as u32;
+
+            // Create new record
+            let new_guid = self.get_new_guid(uid);
+
+            let it_info  = super::item_info::ActiveModel {
+                uid: ActiveValue::Set(uid),
+                guid: ActiveValue::Set(new_guid as i64),
+                item_id: ActiveValue::Set(item_id),
+            };
+
+            let it_info: ItemInfo = it_info.put(&self.db, new_guid as i64).unwrap();
+
+            let detail = if self.jm.is_item_material(item_id) {
+                // Material
+                let mt_info = super::material_info::ActiveModel {
+                    guid: ActiveValue::Set(new_guid as i64),
+                    count: ActiveValue::Set(count),
+                    has_delete_config: ActiveValue::Set(false),
+                    // TODO: MaterialDeleteConfig!
+                };
+
+                let mt_info: MaterialInfo = mt_info.put(&self.db, new_guid as i64).unwrap();
+
+                proto::item::Detail::Material(build!(Material {
+                    count: mt_info.count,
+                }))
+            } else {
+                // Furniture
+                // TODO: no way to check against furniture list, so we're assuming everything that's not material is furniture
+                // That is true as of now, but might change in future versions
+
+                let fr_info = super::furniture_info::ActiveModel {
+                    guid: ActiveValue::Set(new_guid as i64),
+                    count: ActiveValue::Set(count),
+                };
+
+                let fr_info: FurnitureInfo = fr_info.put(&self.db, new_guid as i64).unwrap();
+
+                proto::item::Detail::Furniture(build!(Furniture {
+                    count: fr_info.count,
+                }))
+            };
+
+            (new_guid, detail)
+        } else if items_list.len() == 1 {
+            let item = &items_list[0];
+
+            let detail = if self.jm.is_item_material(item_id) {
+                let mt_info = item.find_related(MaterialInfoEntity).one(&self.db).wait().unwrap();
+
+                let mut mt_info: super::material_info::ActiveModel = mt_info.unwrap().into();
+                mt_info.count = ActiveValue::Set((mt_info.count.unwrap() as i32 + count) as u32);
+
+                let mt_info: MaterialInfo = mt_info.update(&self.db).wait().unwrap();
+
+                proto::item::Detail::Material(build!(Material {
+                    count: mt_info.count,
+                }))
+            } else {
+                let fr_info = item.find_related(FurnitureInfoEntity).one(&self.db).wait().unwrap();
+
+                let mut fr_info: super::furniture_info::ActiveModel = fr_info.unwrap().into();
+                fr_info.count = ActiveValue::Set((fr_info.count.unwrap() as i32 + count) as u32);
+
+                let fr_info: FurnitureInfo = fr_info.update(&self.db).wait().unwrap();
+
+                proto::item::Detail::Furniture(build!(Furniture {
+                    count: fr_info.count,
+                }))
+            };
+            (item.guid as u64, detail)
+        } else {
+            panic!("Database is in inconsistent shape: multiple items of {}", item_id);
+        };
+
+        let item = build!(Item {
+            guid: guid,
+            item_id: item_id,
+            detail: Some(detail),
+        });
+
+        return Some(item);
+    }
+
+    pub fn remove_item_by_item_id(&self, uid: u32, item_id: u32) -> Option<proto::Item> {
+        let items_list = self.get_items_by_item_id(uid, item_id);
+
+        assert!(items_list.len() == 1);
+
+        let item = &items_list[0];
+
+        self.remove_item_by_guid(item.guid);
+
+        let item = build!(Item {
+            guid: item.guid as u64,
+            item_id: item.item_id,
+            detail: None, // TODO: we make a simplification here!
+        });
+
+        Some(item)
+    }
+
+    fn remove_item_by_guid(&self, guid: i64) {
+        // First, we delete a record about the item
+
+        let res = ItemInfoEntity::delete_many()
+            .filter(super::item_info::Column::Guid.eq(guid))
+            .exec(&self.db)
+            .wait().unwrap();
+
+        assert!(res.rows_affected == 1);
+
+        // Next, clean up any remaining aux data
+        // We could try to check the item type, but why bother if GUIDs are unique?
+
+        let res = FurnitureInfoEntity::delete_many()
+            .filter(super::furniture_info::Column::Guid.eq(guid))
+            .exec(&self.db)
+            .wait().unwrap();
+
+        assert!(res.rows_affected <= 1);
+
+        let res = MaterialInfoEntity::delete_many()
+            .filter(super::material_info::Column::Guid.eq(guid))
+            .exec(&self.db)
+            .wait().unwrap();
+
+        assert!(res.rows_affected <= 1);
+
+        let res = ReliquaryInfoEntity::delete_many()
+            .filter(super::reliquary_info::Column::Guid.eq(guid))
+            .exec(&self.db)
+            .wait().unwrap();
+
+        assert!(res.rows_affected <= 1);
+
+        let res = ReliquaryPropEntity::delete_many()
+            .filter(super::reliquary_prop::Column::Guid.eq(guid))
+            .exec(&self.db)
+            .wait().unwrap();
+
+        // No assert here
+
+        let res = WeaponAffixInfoEntity::delete_many()
+            .filter(super::weapon_affix_info::Column::Guid.eq(guid))
+            .exec(&self.db)
+            .wait().unwrap();
+
+        // No assert here
     }
 
     pub const SPOOFED_AVATAR_ID: u32 = 1;

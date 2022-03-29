@@ -5,8 +5,8 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "item_info")]
 pub struct Model {
-    #[sea_orm(primary_key)]
     pub uid: u32,
+    #[sea_orm(primary_key)]
     pub guid: i64,
     pub item_id: u32,
 }
