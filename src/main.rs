@@ -1,5 +1,7 @@
 extern crate pretty_env_logger;
 
+extern crate tracing_subscriber;
+
 #[macro_use]
 extern crate num_derive;
 
@@ -21,7 +23,12 @@ use luamanager::LuaManager;
 use subsystems::EntitySubsystem;
 
 fn main() {
-    pretty_env_logger::init();
+    //pretty_env_logger::init();
+
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_test_writer()
+        .init();
 
     thread::spawn(|| {
         //let mut ds = DispatchServer::new("127.0.0.1", 9696);
