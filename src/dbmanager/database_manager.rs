@@ -73,6 +73,9 @@ use super::reliquary_prop::Entity as ReliquaryPropEntity;
 pub use super::furniture_info::Model as FurnitureInfo;
 use super::furniture_info::Entity as FurnitureInfoEntity;
 
+pub use super::trans_point::Model as TransPoint;
+use super::trans_point::Entity as TransPointEntity;
+
 /*
   This is used to convert async operations into sync ones
  */
@@ -1048,6 +1051,32 @@ impl DatabaseManager {
             .wait().unwrap();
 
         // No assert here
+    }
+
+    pub fn get_scene_trans_points(&self, user_id: u32, scene_id: u32) -> Vec<u32> {
+        let points = match TransPointEntity::find()
+            .filter(
+                Condition::all()
+                    .add(super::trans_point::Column::Uid.eq(user_id))
+                    .add(super::trans_point::Column::SceneId.eq(scene_id))
+            )
+            .all(&self.db).wait()
+        {
+            Err(_) => { panic!("DB ERROR!") },
+            Ok(points) => points.iter().map(|x| x.point_id).collect(),
+        };
+
+        return points;
+    }
+
+    pub fn add_scene_trans_point(&self, user_id: u32, scene_id: u32, point_id: u32) {
+        let point = super::trans_point::ActiveModel {
+            uid: ActiveValue::Set(user_id),
+            scene_id: ActiveValue::Set(scene_id),
+            point_id: ActiveValue::Set(point_id),
+        };
+
+        let point: TransPoint = point.put(&self.db).unwrap();
     }
 
     pub const SPOOFED_AVATAR_ID: u32 = 1;

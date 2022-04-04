@@ -21,6 +21,7 @@ use crate::utils::{IdManager, TimeManager};
 
 #[packet_processor(
 SceneTransToPointReq,
+UnlockTransPointReq,
 )]
 pub struct TeleportSubsystem {
     packets_to_send_tx: Sender<IpcMessage>,
@@ -74,5 +75,19 @@ impl TeleportSubsystem {
         };
 
         self.em.player_teleported(user_id, pos, s_id, scene_info.scene_token, &proto::EnterType::EnterGoto);
+    }
+
+    pub fn process_unlock_trans_point(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::UnlockTransPointReq, rsp: &mut proto::UnlockTransPointRsp) {
+        let scene_id = req.scene_id;
+        let point_id = req.point_id;
+
+        self.db.add_scene_trans_point(user_id, scene_id, point_id);
+
+        // TODO: for unknown points we can just use player's position and add them to our collection
+
+        build_and_send!(self, user_id, metadata, ScenePointUnlockNotify {
+            scene_id: scene_id,
+            point_list: vec![point_id],
+        });
     }
 }

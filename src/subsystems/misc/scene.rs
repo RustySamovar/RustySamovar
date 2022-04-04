@@ -23,13 +23,15 @@ GetScenePointReq,
 )]
 pub struct SceneSubsystem {
     packets_to_send_tx: Sender<IpcMessage>,
+    db: Arc<DatabaseManager>,
 }
 
 impl SceneSubsystem {
-    pub fn new(packets_to_send_tx: Sender<IpcMessage>) -> Self {
+    pub fn new(db: Arc<DatabaseManager>, packets_to_send_tx: Sender<IpcMessage>) -> Self {
         let mut scs = Self {
             packets_to_send_tx: packets_to_send_tx,
             packet_callbacks: HashMap::new(),
+            db: db,
         };
 
         scs.register();
@@ -49,10 +51,16 @@ impl SceneSubsystem {
     }
 
     fn process_get_scene_point(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::GetScenePointReq, rsp: &mut proto::GetScenePointRsp) {
-        rsp.scene_id = req.scene_id;
+        let scene_id = req.scene_id;
+
+        rsp.scene_id = scene_id;
+
+        // TODO: implemented but for the sake of debugging we hardcode it for now
+        rsp.unlocked_point_list = (1..300).collect();
+        //rsp.unlocked_point_list = self.db.get_scene_trans_points(user_id, scene_id);
+
         // TODO: hardcoded data!
-        rsp.unlocked_point_list = (1..250).collect();
-        rsp.unlock_area_list = (1..11).collect();
+        rsp.unlock_area_list = (1..20).collect();
         //locked_point_list=vec![];
     }
 

@@ -21,3 +21,4 @@ mod item_info;
 mod weapon_affix_info;
 mod reliquary_prop;
 mod furniture_info;
+mod trans_point;
