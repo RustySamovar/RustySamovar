@@ -39,7 +39,7 @@ impl GameServer {
         let es = EntitySubsystem::new(lum.clone(), jm.clone(), db.clone(), em.clone(), packets_to_send_tx.clone());
         let nt = NpcSubsystem::new(packets_to_send_tx.clone());
         let ss = ShopSubsystem::new(jm.clone(), db.clone(), inv.clone(), packets_to_send_tx.clone());
-        let scs = SceneSubsystem::new(packets_to_send_tx.clone());
+        let scs = SceneSubsystem::new(db.clone(), packets_to_send_tx.clone());
         let ps = PauseSubsystem::new(packets_to_send_tx.clone());
         let socs = SocialSubsystem::new(db.clone(), packets_to_send_tx.clone());
         let ts = TeleportSubsystem::new(jm.clone(), db.clone(), em.clone(), packets_to_send_tx.clone());
