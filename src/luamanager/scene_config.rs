@@ -3,6 +3,13 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+// Custom types that are NOT (de)serialized!
+#[derive(PartialEq, Debug, Clone)]
+pub struct MonsterWeaponInfo {
+    pub entity_id: u32,
+    pub gadget_id: u32,
+}
+
 // sceneX.lua
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -191,6 +198,12 @@ pub struct Monster {
     pub config_id: u32,
     pub level: u32,
     pub monster_id: u32,
+
+    /*
+      This is an artificial field that is not serialized nor deserialized
+     */
+    #[serde(skip)]
+    pub weapons_list: Vec<MonsterWeaponInfo>,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]

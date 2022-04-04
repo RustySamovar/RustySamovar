@@ -6,6 +6,7 @@ use crate::utils::IdManager;
 use crate::entitymanager::{Entity, EntityTrait};
 
 use lua_serde::from_file;
+use crate::JsonManager;
 
 use super::scene_config;
 
@@ -16,6 +17,7 @@ pub use super::scene_config::Vector;
 pub use super::scene_config::Monster;
 pub use super::scene_config::Npc;
 pub use super::scene_config::Gadget;
+pub use super::scene_config::MonsterWeaponInfo;
 
 #[derive(Debug)]
 pub struct InternalSceneData {
@@ -66,6 +68,7 @@ impl InternalSceneData {
 #[derive(Debug)]
 pub struct LuaManager {
     scenes_data: HashMap<u32,InternalSceneData>,
+    last_entity_id: u32,
 }
 
 // TODO: Hack-y stuff!
@@ -74,13 +77,16 @@ macro_rules! block_name { () => ("{}/Scene/{}/scene{}_block{}.lua")}
 macro_rules! group_name { () => ("{}/Scene/{}/scene{}_group{}.lua")}
 
 impl LuaManager {
-    pub fn new(directory: &str) -> LuaManager {
+    pub fn new(directory: &str, jm: &Arc<JsonManager>) -> LuaManager {
+        let mut entity_id_counter: u32 = 1;
+
         let scenes_to_load = vec![3]; // TODO!
 
-        let scenes = Self::load_scenes(directory, &scenes_to_load);
+        let scenes = Self::load_scenes(directory, jm, &scenes_to_load, &mut entity_id_counter);
 
         LuaManager {
             scenes_data: scenes,
+            last_entity_id: entity_id_counter,
         }
     }
 
@@ -92,23 +98,21 @@ impl LuaManager {
         return Err(format!("Scene {} not found!", scene_id));
     }
 
-    fn load_scenes(directory: &str, scenes_to_load: &Vec<u32>) -> HashMap<u32,InternalSceneData> {
+    fn load_scenes(directory: &str, jm: &Arc<JsonManager>, scenes_to_load: &Vec<u32>, entity_id_counter: &mut u32) -> HashMap<u32,InternalSceneData> {
         scenes_to_load
             .iter()
-            .map(|scene_id| (*scene_id, Self::load_scene(directory, *scene_id)))
+            .map(|scene_id| (*scene_id, Self::load_scene(directory, jm, *scene_id, entity_id_counter)))
             .collect()
     }
 
-    fn load_scene(directory: &str, scene_id: u32) -> InternalSceneData {
-        let mut entity_id_counter: u32 = 1;
-
+    fn load_scene(directory: &str, jm: &Arc<JsonManager>, scene_id: u32, entity_id_counter: &mut u32) -> InternalSceneData {
         let filename = format!(scene_name!(), directory, scene_id, scene_id);
 
         let scene: Scene = from_file(&filename).unwrap(); // TODO: error handling!
 
         let blocks = scene.blocks
             .iter()
-            .map(|(key, block_id)| (*block_id, Self::load_block(directory, scene_id, *block_id, &mut entity_id_counter)))
+            .map(|(key, block_id)| (*block_id, Self::load_block(directory, jm, scene_id, *block_id, entity_id_counter)))
             .collect();
 
         InternalSceneData {
@@ -118,7 +122,7 @@ impl LuaManager {
         }
     }
 
-    fn load_block(directory: &str, scene_id: u32, block_id: u32, entity_id_counter: &mut u32) -> InternalBlockData {
+    fn load_block(directory: &str, jm: &Arc<JsonManager>, scene_id: u32, block_id: u32, entity_id_counter: &mut u32) -> InternalBlockData {
         let filename = format!(block_name!(), directory, scene_id, scene_id, block_id);
         let block: Block = from_file(&filename).unwrap(); // TODO: error handling!
 
@@ -127,12 +131,12 @@ impl LuaManager {
                 // TODO: should be this! But some groups are missing
             block.groups
                 .iter()
-                .map(|(key, group_info)| (group_info.id, Self::load_group(directory, scene_id, block_id, group_info.id).unwrap() /* Unwrap to make compiler happy*/))
+                .map(|(key, group_info)| (group_info.id, Self::load_group(directory, jm, scene_id, block_id, group_info.id).unwrap() /* Unwrap to make compiler happy*/))
                 .collect()
         } else {
             let (groups, errors): (Vec<_>, Vec<_>) = block.groups
                 .iter()
-                .map(|(key, group_info)| (group_info.id, Self::load_group(directory, scene_id, block_id, group_info.id)))
+                .map(|(key, group_info)| (group_info.id, Self::load_group(directory, jm, scene_id, block_id, group_info.id)))
                 .partition(|(group_id, result)| result.is_ok());
 
             let groups = groups.into_iter().map(|(group_id, result)| (group_id, result.unwrap())).collect();
@@ -163,12 +167,39 @@ impl LuaManager {
                 let entity_id = IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityMonster, *entity_id_counter);
                 *entity_id_counter = *entity_id_counter + 1;
 
+                let real_monster_id = monster.monster_id;
+
+                let monster_info = &jm.monsters.get(&real_monster_id);
+
+                let mut monster = monster.clone();
+
+                monster.weapons_list = match monster_info {
+                    Some(mi) => {
+                        // TODO: HACK! There's usually at most two values, one of them sometimes nonzero
+                        mi.equips.iter()
+                            .filter(|id| **id > 0)
+                            .map(|id| {
+                                let mwi = MonsterWeaponInfo {
+                                    entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, *entity_id_counter),
+                                    gadget_id: *id,
+                                };
+                                *entity_id_counter = *entity_id_counter + 1;
+                                mwi
+                            })
+                            .collect()
+                    },
+                    None => {
+                        println!("No monster info found for monster {}! No weapon.", real_monster_id);
+                        vec![]
+                    },
+                };
+
                 entities.insert(entity_id, Arc::new(Entity {
                     entity_id: entity_id,
                     group_id: *group_id,
                     block_id: block_id,
                     health: 0,
-                    entity: Arc::new(monster.clone()), // TODO: very fucking inefficient!
+                    entity: Arc::new(monster), // TODO: very fucking inefficient!
                 }));
             }
 
@@ -195,7 +226,7 @@ impl LuaManager {
         }
     }
 
-    fn load_group(directory: &str, scene_id: u32, block_id: u32, group_id: u32) -> Result<(InternalGroupData), std::io::Error> {
+    fn load_group(directory: &str, jm: &Arc<JsonManager>, scene_id: u32, block_id: u32, group_id: u32) -> Result<(InternalGroupData), std::io::Error> {
         let filename = format!(group_name!(), directory, scene_id, scene_id, group_id);
         //let group: Group = from_file(&filename).unwrap(); // TODO: error handling!
         let group: Group = from_file(&filename)?;

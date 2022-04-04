@@ -6,7 +6,7 @@ use rand::{self, Rng};
 
 #[macro_use]
 use packet_processor::*;
-use crate::{DatabaseManager, JsonManager};
+use crate::{DatabaseManager, EntityManager, JsonManager};
 use crate::jsonmanager::{CurveInfo, EntityCurve};
 
 use crate::collection;
@@ -119,6 +119,16 @@ impl EntityTrait for Monster {
             },
         };
 
+        let weapon_list: Vec<_> = self.weapons_list.iter()
+            .map(|mwi| {
+                build!(SceneWeaponInfo {
+                    entity_id: mwi.entity_id,
+                    gadget_id: mwi.gadget_id,
+                    ability_info: Some(build!(AbilitySyncStateInfo { is_inited: true, })),
+                    // TODO: there're many more fields!
+                })
+            }).collect();
+
         proto::scene_entity_info::Entity::Monster(build!(SceneMonsterInfo {
             monster_id: self.monster_id,
             group_id: group_id,
@@ -127,7 +137,8 @@ impl EntityTrait for Monster {
             born_type: proto::MonsterBornType::MonsterBornDefault as i32, // TODO: hardcoded value!
             block_id: block_id,
             affix_list: affixes,
-            // TODO: special_name!
+            weapon_list: weapon_list,
+            // TODO: special_name_id, title_id, pose_id!
         }))
     }
     fn props(&self, world_level: u32, jm: &Arc<JsonManager>, db: &Arc<DatabaseManager>) -> HashMap<u32, i64> {
@@ -231,7 +242,7 @@ impl EntityTrait for Npc {
     fn etype(&self) -> proto::ProtEntityType {
         proto::ProtEntityType::ProtEntityNpc
     }
-    fn info(&self, block_id: u32, group_id: u32, jm: &Arc<JsonManager>,) -> proto::scene_entity_info::Entity {
+    fn info(&self, block_id: u32, group_id: u32, jm: &Arc<JsonManager>) -> proto::scene_entity_info::Entity {
         proto::scene_entity_info::Entity::Npc(build!(SceneNpcInfo {
             npc_id: self.npc_id,
             block_id: block_id,
@@ -271,7 +282,7 @@ impl EntityTrait for Gadget {
     fn etype(&self) -> proto::ProtEntityType {
         proto::ProtEntityType::ProtEntityGadget
     }
-    fn info(&self, block_id: u32, group_id: u32, jm: &Arc<JsonManager>,) -> proto::scene_entity_info::Entity {
+    fn info(&self, block_id: u32, group_id: u32, jm: &Arc<JsonManager>) -> proto::scene_entity_info::Entity {
         proto::scene_entity_info::Entity::Gadget(build!(SceneGadgetInfo {
             gadget_id: self.gadget_id,
             group_id: group_id,

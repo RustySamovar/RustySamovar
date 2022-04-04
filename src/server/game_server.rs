@@ -30,7 +30,7 @@ impl GameServer {
     pub fn new(packets_to_process_rx: mpsc::Receiver<IpcMessage>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameServer {
         let jm = Arc::new(JsonManager::new("./data/json"));
         let db = Arc::new(DatabaseManager::new("sqlite://./database.db3", jm.clone()));
-        let lum = Arc::new(LuaManager::new("./data/lua"));
+        let lum = Arc::new(LuaManager::new("./data/lua", &jm.clone()));
         let em = Arc::new(EntityManager::new(lum.clone(),jm.clone(), db.clone(), packets_to_send_tx.clone()));
         let lm = LoginManager::new(db.clone(), jm.clone(), em.clone(),packets_to_send_tx.clone());
 
