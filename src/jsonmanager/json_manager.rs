@@ -10,6 +10,7 @@ use rand::{seq::IteratorRandom, thread_rng};
 use crate::jsonmanager::gather::Gather;
 use crate::jsonmanager::material::Material;
 use crate::jsonmanager::reliquary::{Reliquary, ReliquaryAffix, ReliquaryMainProp};
+use crate::jsonmanager::scene::Scene;
 use crate::jsonmanager::shop_goods::ShopGoods;
 use crate::jsonmanager::shop_rotate::ShopRotate;
 use crate::jsonmanager::teleport_point::TeleportPoint;
@@ -57,6 +58,8 @@ pub struct JsonManager {
     pub materials: HashMap<u32, Material>,
 
     pub teleport_points: HashMap<u32, HashMap<u32, TeleportPoint>>,
+
+    pub scenes: HashMap<u32, Scene>,
 }
 
 impl std::fmt::Debug for JsonManager { // TODO: fucking hack!
@@ -89,6 +92,8 @@ impl JsonManager {
 
         let teleport_points: Vec<TeleportPoint> = reader.read_json_list_3rdparty("TeleportPoints");
 
+        let scenes: Vec<Scene> = reader.read_json_list_game("Scene");
+
         return JsonManager {
             reader: reader,
             avatar_skill_depot: asd.into_iter().map(|a| (a.id, a)).collect(),
@@ -115,6 +120,8 @@ impl JsonManager {
             teleport_points: group_nonconsec_by(teleport_points, |tp| tp.scene_id).into_iter()
                 .map(|(scene_id, tp_list)| (scene_id, tp_list.into_iter().map(|tp| (tp.point_id, tp)).collect()))
                 .collect(),
+
+            scenes: scenes.into_iter().map(|s| (s.id, s)).collect(),
         };
     }
 

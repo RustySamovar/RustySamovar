@@ -172,8 +172,10 @@ impl GameWorld {
             scene_time: 9000,
         });
 
+        let level_config = &self.jm.scenes[&current_scene_info.scene_id].level_entity_config;
+
         build_and_send!(self, user_id, metadata, SceneDataNotify {
-            level_config_name_list: vec!["Level_BigWorld".to_string()], // TODO
+            level_config_name_list: vec![level_config.to_string()], // TODO: maybe there's more?
         });
         
         build_and_send!(self, user_id, metadata, HostPlayerNotify {

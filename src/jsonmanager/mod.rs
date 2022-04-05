@@ -14,6 +14,7 @@ mod weapon;
 mod reliquary;
 mod material;
 mod teleport_point;
+mod scene;
 
 pub use entity_curve::{CurveInfo,EntityCurve};
 pub use shop_goods::ShopGoods;
