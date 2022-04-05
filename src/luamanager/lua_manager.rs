@@ -142,7 +142,9 @@ impl LuaManager {
             let groups = groups.into_iter().map(|(group_id, result)| (group_id, result.unwrap())).collect();
             let errors: Vec<_> = errors.into_iter().map(|(group_id, result)| (group_id, result.unwrap_err())).collect();
 
-            println!("Missing groups: {:?}", errors);
+            if errors.len() > 0 {
+                println!("Missing groups: {:?}", errors);
+            }
             groups
         };
 
