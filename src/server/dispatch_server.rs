@@ -20,6 +20,7 @@ use actix_web::{rt::System, web, get, App, HttpRequest, HttpResponse, HttpServer
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod, SslVerifyMode, SslOptions, SslMode};
 use openssl::rsa::{Rsa, Padding};
 use openssl::symm::Cipher;
+use openssl::sha::Sha256;
 use rand::{distributions::Alphanumeric, Rng};
 
 use prost::Message;
@@ -49,7 +50,7 @@ fn deserialize_pub_key<'de, D>(deserializer: D) -> Result<Rsa<Public>, D::Error>
     where
         D: Deserializer<'de>,
 {
-    let public_key_pem: &str = Deserialize::deserialize(deserializer)?;
+    let public_key_pem: String = Deserialize::deserialize(deserializer)?;
 
     Rsa::public_key_from_pem(public_key_pem.as_bytes()).map_err(D::Error::custom)
 }
@@ -58,7 +59,7 @@ fn deserialize_priv_key<'de, D>(deserializer: D) -> Result<Rsa<Private>, D::Erro
     where
         D: Deserializer<'de>,
 {
-    let private_key_pem: &str = Deserialize::deserialize(deserializer)?;
+    let private_key_pem: String = Deserialize::deserialize(deserializer)?;
 
     Rsa::private_key_from_pem(private_key_pem.as_bytes()).map_err(D::Error::custom)
 }
@@ -249,7 +250,7 @@ impl DispatchServer {
         println!("RegionList, Client: {:?}", c);
 
         let keys = DispatchServer::load_keys("master");
-        
+
         let mut region_info = proto::RegionSimpleInfo::default();
         region_info.name = "ps_rusty".into();
         region_info.title = "Rusty Samovar".into();
@@ -282,7 +283,7 @@ impl DispatchServer {
         println!("CurRegion, Client: {:?}", c);
 
         let keys = DispatchServer::load_keys("master");
-        
+
         let mut region_info = proto::RegionInfo::default();
         region_info.gateserver_ip = DispatchServer::get_local_ip();
         region_info.gateserver_port = 4242;
@@ -319,15 +320,15 @@ impl DispatchServer {
             let mut out_buf: Vec<u8> = Vec::new();
             let mut enc_buf: Vec<u8> = vec![0; keys.public_key.size() as usize];
 
-            for chunk in region_conf_buf.chunks(245) { // TODO: value hardcoded for the 2048-bit key!
-                keys.public_key.public_encrypt(chunk, &mut enc_buf, Padding::PKCS1).unwrap();
+            for chunk in region_conf_buf.chunks((keys.public_key.size() - 11) as usize) { // TODO: value hardcoded for the PKCS1 v1.5!
+                let len = keys.private_key.public_encrypt(chunk, &mut enc_buf, Padding::PKCS1).unwrap();
                 out_buf.append(&mut enc_buf);
+                enc_buf.resize(keys.public_key.size() as usize, 0);
             }
 
-            let keypair = PKey::from_rsa(keys.private_key.clone()).unwrap();
+            let keypair = PKey::from_rsa(keys.private_key.clone()).unwrap(); // TODO: this is not a correct private key!
             let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
-            signer.update(&region_conf_buf).unwrap();
-            let signature = signer.sign_to_vec().unwrap();
+            let signature = signer.sign_oneshot_to_vec(&region_conf_buf).unwrap();
 
             return format!("
             {{
@@ -481,7 +482,7 @@ impl DispatchServer {
 
         if (is_next) {
             let callback = g.callback.as_ref().unwrap();
-            
+
             return format!("
                 {}( {{
                     \"gt\": \"{}\",
