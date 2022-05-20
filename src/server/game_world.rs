@@ -152,6 +152,7 @@ impl GameWorld {
         let team_enter_info = build!(TeamEnterSceneInfo {
             team_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityTeam, DatabaseManager::SPOOFED_TEAM_ID), // TODO
             team_ability_info: Some(build!(AbilitySyncStateInfo {})),
+            ability_control_block: Some(build!(AbilityControlBlock {})),
             });
 
         build_and_send!(self, user_id, metadata, PlayerEnterSceneInfoNotify {
