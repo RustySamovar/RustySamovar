@@ -1,5 +1,8 @@
 RustySamovar
 ===============================
+
+EN | [中文](README_CN.md)
+
 Custom server for YuanShen / Genshin Impact video game.
 
 Supported game versions: 1.4.5x - 2.7.5x (depends on protocol definitions provided and keys used)
