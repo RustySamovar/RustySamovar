@@ -80,8 +80,8 @@ impl GameWorld {
     }
 
     fn process_scene_init_finish(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::SceneInitFinishReq, rsp: &mut proto::SceneInitFinishRsp) {
-        let current_avatar_guid = match self.db.get_player_team_selection(user_id) {
-            Some(team_selection) => team_selection.avatar,
+        let (current_avatar_guid, current_team_id) = match self.db.get_player_team_selection(user_id) {
+            Some(team_selection) => (team_selection.avatar, team_selection.team),
             None => panic!("Team selection info not found for user {}!", user_id),
         };
 
@@ -110,13 +110,15 @@ impl GameWorld {
             uid: user_id,
             nickname: user.nick_name.clone(),
             player_level: user_level,
-            avatar_id: user.avatar_id,
+            avatar_id: user.avatar_id, // TODO: this is deprecated in current game versions, profile_picture is used instead
             mp_setting_type: proto::MpSettingType::MpSettingEnterAfterApply as i32, // TODO!
             cur_player_num_in_world: 1, // TODO!
             world_level: world_level,
             name_card_id: user.namecard_id,
             signature: user.signature.clone(),
-            // TODO: Field 12!
+            profile_picture: Some(build!(ProfilePicture {
+                avatar_id: user.avatar_id,
+            })),
         });
 
         build_and_send!(self, user_id, metadata, WorldPlayerInfoNotify {
@@ -150,7 +152,7 @@ impl GameWorld {
             ability_info: Some(build!(AbilitySyncStateInfo {})),
         });
         let team_enter_info = build!(TeamEnterSceneInfo {
-            team_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityTeam, DatabaseManager::SPOOFED_TEAM_ID), // TODO
+            team_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityTeam, current_team_id as u32),
             team_ability_info: Some(build!(AbilitySyncStateInfo {})),
             ability_control_block: Some(build!(AbilityControlBlock {})),
             });
@@ -190,8 +192,10 @@ impl GameWorld {
             player_uid: user_id,
             avatar_guid: current_avatar_guid as u64, // FIXME
             entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityAvatar, DatabaseManager::SPOOFED_AVATAR_ID),
+            avatar_ability_info: Some(build!(AbilitySyncStateInfo {})),
             weapon_guid: IdManager::get_guid_by_uid_and_id(user_id, DatabaseManager::SPOOFED_WEAPON_ID),
             weapon_entity_id: IdManager::get_entity_id_by_type_and_sub_id(&proto::ProtEntityType::ProtEntityWeapon, DatabaseManager::SPOOFED_WEAPON_ID),
+            weapon_ability_info: Some(build!(AbilitySyncStateInfo {})),
             is_player_cur_avatar: true, // TODO
             scene_entity_info: Some(self.spoof_scene_default_avatar(user_id)),
             ability_control_block: Some(self.spoof_default_abilities()),
@@ -271,6 +275,7 @@ impl GameWorld {
             equip_id_list: vec![11406], // TODO
             weapon: Some(weapon),
             wearing_flycloak_id: 140001, // TODO
+            excel_info: avatar_info.excel_info.clone(),
         });
 
         let scene_ai_info = build!(SceneEntityAiInfo {
@@ -288,6 +293,7 @@ impl GameWorld {
             fight_prop_list: Remapper::remap3(&current_avatar_fight_props),
             motion_info: Some(motion_info),
             entity_authority_info: Some(authority_info),
+            entity_client_data: Some(build!(EntityClientData {})),
             animator_para_list: vec![build!(AnimatorParameterValueInfoPair {
                 name_id: 0, // TODO: unknown!
                 animator_para: Some(build!(AnimatorParameterValueInfo {})),
@@ -342,7 +348,7 @@ impl GameWorld {
 
         for (key, value) in map {
             let mut emb = proto::AbilityEmbryo::default();
-            //emb.ability_id = key; // TODO: ability IDs should be PRECISE or LEFT OUT completely!
+            emb.ability_id = key;
             emb.ability_name_hash = value;
             emb.ability_override_name_hash = 0x463810D9;
             ability_list.push(emb);

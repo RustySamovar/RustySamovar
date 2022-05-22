@@ -38,12 +38,12 @@ pub struct DispatchServer {}
 
 // Keys stuff
 #[derive(Deserialize,Debug)]
-struct KeyInfo {
-    key_id: u8,
-    #[serde(deserialize_with = "deserialize_pub_key")]
-    public_key: Rsa<Public>,
+pub struct KeyInfo {
+    pub key_id: u8,
     #[serde(deserialize_with = "deserialize_priv_key")]
-    private_key: Rsa<Private>,
+    pub encrypt_key: Rsa<Private>,
+    #[serde(deserialize_with = "deserialize_priv_key")]
+    pub signing_key: Rsa<Private>,
 }
 
 fn deserialize_pub_key<'de, D>(deserializer: D) -> Result<Rsa<Public>, D::Error>
@@ -317,16 +317,18 @@ impl DispatchServer {
                 None => panic!("Unknown key ID {}!", key_id),
             };
 
-            let mut out_buf: Vec<u8> = Vec::new();
-            let mut enc_buf: Vec<u8> = vec![0; keys.public_key.size() as usize];
+            const key_size: usize = 256; // TODO: hardcoded constant!
 
-            for chunk in region_conf_buf.chunks((keys.public_key.size() - 11) as usize) { // TODO: value hardcoded for the PKCS1 v1.5!
-                let len = keys.private_key.public_encrypt(chunk, &mut enc_buf, Padding::PKCS1).unwrap();
-                out_buf.append(&mut enc_buf);
-                enc_buf.resize(keys.public_key.size() as usize, 0);
+            let mut out_buf: Vec<u8> = Vec::new();
+            let mut enc_buf: Vec<u8> = vec![0; key_size];
+
+            for chunk in region_conf_buf.chunks((key_size - 11) as usize) { // TODO: value hardcoded for the PKCS1 v1.5!
+                let len = keys.encrypt_key.public_encrypt(chunk, &mut enc_buf, Padding::PKCS1).unwrap();
+                out_buf.append(&mut enc_buf[0..len].to_vec());
+                enc_buf.resize(key_size, 0);
             }
 
-            let keypair = PKey::from_rsa(keys.private_key.clone()).unwrap(); // TODO: this is not a correct private key!
+            let keypair = PKey::from_rsa(keys.signing_key.clone()).unwrap();
             let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
             let signature = signer.sign_oneshot_to_vec(&region_conf_buf).unwrap();
 
@@ -658,7 +660,7 @@ impl DispatchServer {
     }
 
     async fn log_skip(body: web::Bytes) -> String {
-        //println!("Logging: {}", std::str::from_utf8(&body).unwrap());
+        println!("Logging: {}", std::str::from_utf8(&body).unwrap());
 
         return "{}".to_string();
     }
@@ -704,7 +706,7 @@ impl DispatchServer {
         return "127.0.0.1".to_string();
     }
 
-    fn load_rsa_keys(name: &str) -> HashMap<u8, KeyInfo> {
+    pub fn load_rsa_keys(name: &str) -> HashMap<u8, KeyInfo> {
         // Key depo
         let path = format!("./{}/{}.json", "keys", name);
         let json_file_path = Path::new(&path);

@@ -38,8 +38,8 @@ impl AuthManager {
 
         rsp.account_type = req.account_type;
         rsp.account_uid = req.account_uid.clone();
-        rsp.token = format!("token-game-{}", req.account_uid);
-        rsp.secret_key_seed = seed;
+        rsp.token = req.account_token.clone();
+        rsp.secret_key_seed = 0;//seed; // TODO: temporary workaround!
         rsp.uid = uid;
 
         self.conv_to_user.insert(conv, uid);

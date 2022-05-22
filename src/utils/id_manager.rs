@@ -50,4 +50,8 @@ impl IdManager {
     pub fn get_guid_by_uid_and_id(uid: u32, id: u32) -> u64 {
         return (((uid as u64) << 32) | (id as u64));
     }
+
+    pub fn get_hash_by_prefix_suffix(prefix: u8, suffix: u32) -> u64 {
+        ((prefix as u64) << 32) | (suffix as u64)
+    }
 }

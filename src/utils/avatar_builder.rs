@@ -84,6 +84,13 @@ impl AvatarBuilder {
                     proud_skill_extra_level_map: fuck, //collection!{739 => 3, 732 => 3},
                     wearing_flycloak_id: 140001, // TODO: hack!
                     life_state: 1,
+                    excel_info: Some(build!(AvatarExcelInfo { // TODO: load values from config!
+                        prefab_path_hash: IdManager::get_hash_by_prefix_suffix(50, 2568507538),
+                        prefab_path_remote_hash: IdManager::get_hash_by_prefix_suffix(158, 3204428759),
+                        controller_path_hash: IdManager::get_hash_by_prefix_suffix(154, 3376713903),
+                        controller_path_remote_hash: IdManager::get_hash_by_prefix_suffix(228, 1479775384),
+                        combat_config_hash: IdManager::get_hash_by_prefix_suffix(244, 4049143033),
+                    })),
                 });
         return ai;
     }

@@ -115,6 +115,8 @@ impl LoginManager {
             owned_flycloak_list: vec![140001], // TODO!
         });
 
+        build_and_send!(self, user_id, metadata, CoopDataNotify { });
+
         let pos = luamanager::Vector {x: scene_info.pos_x, y: scene_info.pos_y, z: scene_info.pos_z};
 
         self.em.player_teleported(user_id, pos, scene_info.scene_id, scene_info.scene_token, &proto::EnterType::EnterSelf);

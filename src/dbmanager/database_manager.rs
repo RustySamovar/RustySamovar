@@ -1082,7 +1082,6 @@ impl DatabaseManager {
     pub const SPOOFED_AVATAR_ID: u32 = 1;
     pub const SPOOFED_WEAPON_ID: u32 = 2;
     const SPOOFED_SCENE_ID: u32 = 3; // TODO: that's a different kind of ID!
-    pub const SPOOFED_TEAM_ID: u32 = 4;
     pub const SPOOFED_MP_LEVEL_ID: u32 = 5;
     const SPOOFED_SCENE_TOKEN: u32 = 0x1234;
 }
