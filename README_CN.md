@@ -21,7 +21,7 @@ RustySamovar
 
 您还需要安装 Rust
 
-- 在windows上，请查看 [棺方文档](https://www.rust-lang.org/tools/install) （真心推荐使用Liunx！！！）
+- 在windows上，请查看 [棺方文档](https://www.rust-lang.org/tools/install)
 - 在Linux上，使用系统包管理器安装 `rustc` 和 `cargo`
 
 ## 准备仓库齐全
@@ -37,13 +37,13 @@ RustySamovar
 要生成 SSL 证书，您需要安装 `openssl` 
 
 - 在Linux / Unix上，使用 `misc/ssl_stuff/get_cert.sh`
-- Windows上，别他妈告诉我你不会用Windows安装程序和openssh指令
+- Windows上，TODO
 
 然后获取证书，继续
 
 ## 编译
 
-就跟你躺在床上打飞机一样简单，执行 `cargo build` 即可
+执行 cargo build 即可
 
 # 运行
 
