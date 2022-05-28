@@ -1,0 +1,12 @@
+[submodule "proto"]
+	path = proto
+	url = ../proto
+[submodule "mhycrypt"]
+	path = mhycrypt
+	url = ../mhycrypt
+[submodule "kcp"]
+	path = kcp
+	url = ../kcp
+[submodule "lua_serde"]
+	path = lua_serde
+	url = ../lua_serde

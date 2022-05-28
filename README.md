@@ -23,7 +23,7 @@ Also you'll need to install Rust.
 
 ## Preparing the workplace
 
-Clone / download and unzip all project repositories (`proto`, `mhycrypt`, `RustySamovar`, `kcp`, `lua_serde`) into the same directory.
+Clone repository with `git clone --recurse-submodules <repo_url>`. This is required to initialize all submodules.
 
 ## Retrieving protocol definitions
 
