@@ -36,7 +36,8 @@ To generate an SSL certificate, you'll need `openssl` tool installed.
 - On *nix, use `misc/ssl_stuff/get_cert.sh` script
 - On Windows, TODO
 
-To get the traffic encryption key, TODO.
+To get the traffic encryption key, there're many possible ways, but the easiest one would be to generate them using 
+[Ec2b tool](https://github.com/Jasuf/Ec2b). Move `Ec2bSeed.bin` into `keys/master.ec2b` and `Ec2bKey.bin` into `keys/master.key`.
 
 ## Compiling
 
