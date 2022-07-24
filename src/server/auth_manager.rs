@@ -13,7 +13,6 @@ use crate::server::IpcMessage;
 use packet_processor_macro::*;
 #[macro_use]
 use packet_processor::*;
-use crate::DispatchServer;
 
 #[packet_processor(GetPlayerTokenReq)]
 pub struct AuthManager {
@@ -69,7 +68,7 @@ impl AuthManager {
 
             let key_id = req.unk4 as u8;
 
-            let rsa_key_collection = DispatchServer::load_rsa_keys("RSAConfig");
+            let rsa_key_collection = mhycrypt::load_rsa_keys("RSAConfig", "keys");
             let keys = match rsa_key_collection.get(&key_id) {
                 Some(keys) => keys,
                 None => panic!("Unknown key ID {}!", key_id),

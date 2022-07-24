@@ -17,7 +17,6 @@ mod entitymanager;
 mod subsystems;
 
 use server::NetworkServer;
-use server::DispatchServer;
 use dbmanager::DatabaseManager;
 use jsonmanager::JsonManager;
 use luamanager::LuaManager;
@@ -31,12 +30,6 @@ fn main() {
         .with_max_level(tracing::Level::DEBUG)
         .with_test_writer()
         .init();
-
-    thread::spawn(|| {
-        //let mut ds = DispatchServer::new("127.0.0.1", 9696);
-        let mut ds = DispatchServer::new();
-        ds.run();
-    });
 
     let mut ns = NetworkServer::new("0.0.0.0", 4242).unwrap();
     ns.run().expect("Failed to serve!");

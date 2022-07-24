@@ -29,15 +29,9 @@ Clone repository with `git clone --recurse-submodules <repo_url>`. This is requi
 
 Look at the instructions in the `proto` project on how to get the required file set.
 
-## Retrieving an SSL certificate and traffic encryption keys
+## Retrieving traffic encryption keys
 
-To generate an SSL certificate, you'll need `openssl` tool installed.
-
-- On *nix, use `misc/ssl_stuff/get_cert.sh` script
-- On Windows, TODO
-
-To get the traffic encryption key, there're many possible ways, but the easiest one would be to generate them using 
-[Ec2b tool](https://github.com/Jasuf/Ec2b). Move `Ec2bSeed.bin` into `keys/master.ec2b` and `Ec2bKey.bin` into `keys/master.key`.
+Refer to `Sapozhok`'s README about traffic encryption keys. Note that `RustySamovar` doesn't need SSL keys, only RSA and regional ones.
 
 ## Compiling
 
@@ -47,7 +41,7 @@ Just plain and simple `cargo build`.
 
 ## Preparation
 
-To run the game, you'll need some of the game's files:
+To run the server, you'll need some of the game's files:
 
 - [Lua scripts](https://github.com/14eyes/YSLua), grab them from `DecompiledLua/Lua` subdirectory and put into `data/lua/` subfolder of
   the server
@@ -58,16 +52,6 @@ To run the game, you'll need some of the game's files:
 
 Alternatively you can dump everything by yourself using tools available at Bublik.
 
-## Redirecting the game's traffic to the server
-
-The simplest method is by modifying the `hosts` file. Copy the contents from the provided file into your system-wide one. 
-Note that you'll need to comment those lines as soon as you'll want to play on the official servers or access official 
-resources (like web events or daily login rewards).
-
 ## Starting the server
 
-Just `cargo run` but with a caveat. Server listens on privileged ports (80, 443), so it needs permissions for that.
-
-- On Windows, UAC prompt should automatically pop up and ask you to elevate server's priviledges. If it's not happening, run the server's
-  executable as admin.
-- On *nix, you'll need to grant the server the specific capability. You can do it by running `sudo setcap 'cap_net_bind_service=+ep' ./target/debug/RustySamovar`. **Please don't run the server as root!**
+Just `cargo run` will do the trick.
