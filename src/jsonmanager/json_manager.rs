@@ -23,6 +23,7 @@ use super::world_level::WorldLevel;
 use super::gadget_prop::GadgetProp;
 
 use crate::jsonmanager::avatar::Avatar;
+use crate::jsonmanager::avatar_skill::AvatarSkill;
 use crate::jsonmanager::proud_skill::ProudSkill;
 
 fn group_nonconsec_by<A, B, I>(v: I, key: fn (&B) -> A) -> BTreeMap<A, Vec<B>>
@@ -67,6 +68,8 @@ pub struct JsonManager {
     pub avatars: HashMap<u32, Avatar>,
 
     pub proud_skills: HashMap<u32, ProudSkill>,
+
+    pub avatar_skills: HashMap<u32, AvatarSkill>,
 }
 
 impl std::fmt::Debug for JsonManager { // TODO: fucking hack!
@@ -105,6 +108,8 @@ impl JsonManager {
 
         let proud_skills: Vec<ProudSkill> = reader.read_json_list_game("ProudSkill");
 
+        let avatar_skills: Vec<AvatarSkill> = reader.read_json_list_game("AvatarSkill");
+
         return JsonManager {
             reader: reader,
             avatar_skill_depot: asd.into_iter().map(|a| (a.id, a)).collect(),
@@ -137,6 +142,8 @@ impl JsonManager {
             avatars: avatars.into_iter().map(|a| (a.id, a)).collect(),
 
             proud_skills: proud_skills.into_iter().map(|ps| (ps.proud_skill_id, ps)).collect(),
+
+            avatar_skills: avatar_skills.into_iter().map(|ass| (ass.id, ass)).collect(),
         };
     }
 

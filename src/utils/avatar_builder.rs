@@ -51,8 +51,16 @@ impl AvatarBuilder {
             .filter(|s| s.proud_skill_group_id != None)
             .filter(|s| s.need_avatar_promote_level == None || s.need_avatar_promote_level.unwrap() <= promote_level)
             .map(|s| s.proud_skill_group_id.unwrap())
-            .map(|s| s * 100 + 1) // TODO: ugly hack! Fix it by reading ProudSkillExcelConfigData!
+
+            .map(|s| {
+                let skill_ids: Vec<u32> = jm.proud_skills.values().filter(|ps| ps.proud_skill_group_id == s).map(|ps| ps.proud_skill_id).collect();
+                skill_ids
+            })
+            .flatten()
             .collect();
+            /*
+            .map(|s| s * 100 + 1) // TODO: ugly hack! Fix it by reading ProudSkillExcelConfigData!
+            .collect();*/
 
         // TODO: properly fill!
         let afi = build!(AvatarFetterInfo {
@@ -63,10 +71,21 @@ impl AvatarBuilder {
         let egi = db.get_avatar_equip(a.guid).unwrap_or_else(|| panic!("Equip not found for avatar {}!", a.guid));
         let egi = egi.into_iter().map(|g| g as u64).collect(); // FIXME
 
-        // TODO: ugly ugly hack!
-        let mut fuck = HashMap::new();
-        fuck.insert(732, 3);
-        fuck.insert(739, 3);
+        /*
+        1. Get all the skill IDs from AvatarSkillDepot entry
+        2. For each skill, get corresponding entry from AvatarSkill collection
+        3. For each AvatarSkill, filter out ones that have ProudSkillGroupId set
+        4. Specify the level for those proud skills
+        */
+        let proud_skill_extra = asd.skills.iter()
+            .map(|s| jm.avatar_skills.get(s))
+            .filter(|ass| ass.is_some())
+            .map(|ass| ass.unwrap())
+            .filter(|ass| ass.proud_skill_group_id != None)
+            .map(|ass| (ass.proud_skill_group_id.unwrap(), 3)) // TODO: fetch level from the database!
+            .collect();
+
+        let avatar = &jm.avatars[&IdManager::get_avatar_id_by_char_id(a.character_id)];
 
         let ai = build!(AvatarInfo {
                     avatar_id: IdManager::get_avatar_id_by_char_id(a.character_id),
@@ -81,15 +100,15 @@ impl AvatarBuilder {
                     equip_guid_list: egi,
                     inherent_proud_skill_list: ips, //vec![72101, 72201],
                     skill_level_map: slm,
-                    proud_skill_extra_level_map: fuck, //collection!{739 => 3, 732 => 3},
+                    proud_skill_extra_level_map: proud_skill_extra, //collection!{739 => 3, 732 => 3},
                     wearing_flycloak_id: 140001, // TODO: hack!
                     life_state: 1,
-                    excel_info: Some(build!(AvatarExcelInfo { // TODO: load values from config!
-                        prefab_path_hash: IdManager::get_hash_by_prefix_suffix(50, 2568507538),
-                        prefab_path_remote_hash: IdManager::get_hash_by_prefix_suffix(158, 3204428759),
-                        controller_path_hash: IdManager::get_hash_by_prefix_suffix(154, 3376713903),
-                        controller_path_remote_hash: IdManager::get_hash_by_prefix_suffix(228, 1479775384),
-                        combat_config_hash: IdManager::get_hash_by_prefix_suffix(244, 4049143033),
+                    excel_info: Some(build!(AvatarExcelInfo {
+                        prefab_path_hash: IdManager::get_hash_by_prefix_suffix(avatar.prefab_path_hash_pre, avatar.prefab_path_hash_suffix),
+                        prefab_path_remote_hash: IdManager::get_hash_by_prefix_suffix(avatar.prefab_path_remote_hash_pre, avatar.prefab_path_remote_hash_suffix),
+                        controller_path_hash: IdManager::get_hash_by_prefix_suffix(avatar.controller_path_hash_pre, avatar.controller_path_hash_suffix),
+                        controller_path_remote_hash: IdManager::get_hash_by_prefix_suffix(avatar.controller_path_remote_hash_pre, avatar.controller_path_remote_hash_suffix),
+                        combat_config_hash: IdManager::get_hash_by_prefix_suffix(avatar.combat_config_hash_pre, avatar.combat_config_hash_suffix),
                     })),
                 });
         return ai;

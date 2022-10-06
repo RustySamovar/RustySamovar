@@ -4,6 +4,7 @@ pub use self::json_manager::JsonManager;
 
 mod proud_skill;
 mod avatar;
+mod avatar_skill;
 mod avatar_skill_depot;
 mod entity_curve;
 mod monster;
