@@ -7,6 +7,8 @@ extern crate num_derive;
 
 use std::thread;
 
+mod node;
+
 mod server;
 mod utils;
 mod dbmanager;
@@ -25,6 +27,8 @@ use entitymanager::EntityManager;
 
 fn main() {
     //pretty_env_logger::init();
+
+    //let mut rt_main = tokio::runtime::Runtime::new().unwrap();
 
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)

@@ -3,7 +3,7 @@ use std::thread;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use prost::Message;
 
@@ -15,6 +15,7 @@ use packet_processor_macro::*;
 use packet_processor::*;
 use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
+use crate::node::NodeConfig;
 use crate::utils::{IdManager, TimeManager};
 
 #[packet_processor(
@@ -22,14 +23,14 @@ GetSceneAreaReq,
 GetScenePointReq,
 )]
 pub struct SceneSubsystem {
-    packets_to_send_tx: Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     db: Arc<DatabaseManager>,
 }
 
 impl SceneSubsystem {
-    pub fn new(db: Arc<DatabaseManager>, packets_to_send_tx: Sender<IpcMessage>) -> Self {
+    pub fn new(db: Arc<DatabaseManager>, node_config: &NodeConfig) -> Self {
         let mut scs = Self {
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             packet_callbacks: HashMap::new(),
             db: db,
         };
@@ -56,11 +57,11 @@ impl SceneSubsystem {
         rsp.scene_id = scene_id;
 
         // TODO: implemented but for the sake of debugging we hardcode it for now
-        rsp.unlocked_point_list = (1..300).collect();
+        rsp.unlocked_point_list = (1..500).collect();
         //rsp.unlocked_point_list = self.db.get_scene_trans_points(user_id, scene_id);
 
         // TODO: hardcoded data!
-        rsp.unlock_area_list = (1..20).collect();
+        rsp.unlock_area_list = (1..50).collect();
         //locked_point_list=vec![];
     }
 

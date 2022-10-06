@@ -1,27 +1,28 @@
 use std::sync::{Arc, mpsc};
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 use crate::{DatabaseManager, JsonManager};
 
 #[macro_use]
 use packet_processor::*;
+use crate::node::NodeConfig;
 
 pub struct InventorySubsystem {
-    packets_to_send_tx: mpsc::Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     db: Arc<DatabaseManager>,
     jm: Arc<JsonManager>,
 }
 
 impl InventorySubsystem {
-    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> Self {
+    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, node_config: &NodeConfig) -> Self {
         Self {
-            packets_to_send_tx: packets_to_send_tx.clone(),
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             db: db.clone(),
             jm: jm.clone(),
         }
     }
 
-    pub fn add_item(&self,  user_id: u32, metadata: &proto::PacketHead, item_id: u32, count: u32, reason: &proto::ActionReasonType, inform_user: bool) {
+    pub fn add_item(&mut self,  user_id: u32, metadata: &proto::PacketHead, item_id: u32, count: u32, reason: &proto::ActionReasonType, inform_user: bool) {
         let (item, is_new) = if self.jm.is_item_weapon(item_id) || self.jm.is_item_reliquary(item_id) {
             assert!(count == 1);
             (self.db.add_equip(user_id, item_id).unwrap(), false) // TODO: is new equip considered a new item?
@@ -48,7 +49,7 @@ impl InventorySubsystem {
         });
     }
 
-    pub fn sub_item(&self,  user_id: u32, metadata: &proto::PacketHead, item_id: u32, count: u32, reason: &proto::ActionReasonType) {
+    pub fn sub_item(&mut self,  user_id: u32, metadata: &proto::PacketHead, item_id: u32, count: u32, reason: &proto::ActionReasonType) {
         let old_amount = self.db.get_item_count_by_item_id(user_id, item_id);
 
         assert!(old_amount >= count);

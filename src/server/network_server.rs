@@ -18,7 +18,7 @@ use crate::server::ClientConnection;
 use crate::server::GameServer;
 use crate::server::AuthManager;
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PullSocket, PushSocket};
 
 use proto::PacketHead;
 use proto::GetPlayerTokenRsp;
@@ -26,15 +26,35 @@ use proto::get_player_token_rsp;
 
 use prost::Message;
 
+use rs_ipc::{SubSocket, PubSocket};
+
 use packet_processor::{PacketProcessor, EasilyUnpackable};
+use crate::node::NodeConfig;
 
 extern crate kcp;
+
+/*
+  This is used to convert async operations into sync ones
+ */
+trait Block {
+    fn wait(self) -> <Self as futures::Future>::Output
+        where Self: Sized, Self: futures::Future
+    {
+        futures::executor::block_on(self)
+    }
+}
+
+impl<F,T> Block for F
+    where F: futures::Future<Output = T>
+{}
+
+// -------------
 
 pub struct NetworkServer {
     socket: UdpSocket,
     clients: Arc<Mutex<HashMap<u32,ClientConnection>>>,
-    packets_to_process_tx: Option<mpsc::Sender<IpcMessage>>,
-    packets_to_send_tx: Option<mpsc::Sender<IpcMessage>>,
+    node_config: NodeConfig,
+    packets_to_process_tx: PubSocket,
 }
 
 #[derive(Debug, Clone)]
@@ -56,14 +76,18 @@ impl fmt::Display for NetworkServerError {
 
 impl NetworkServer {
     pub fn new(host: &str, port: i16) -> Result<NetworkServer, NetworkServerError> {
+        let node_config = NodeConfig::new();
+
+        let mut packets_to_process_tx = node_config.bind_in_queue().unwrap();
+
         let gs = NetworkServer {
             socket: match UdpSocket::bind(format!("{}:{}", host, port).to_string()) {
                 Ok(socket) => socket,
                 Err(e) => return Err(NetworkServerError::new(format!("Failed to bind socket: {}", e).as_str())),
             },
             clients: Arc::new(Mutex::new(HashMap::new())),
-            packets_to_process_tx: None,
-            packets_to_send_tx: None,
+            node_config: node_config,
+            packets_to_process_tx: packets_to_process_tx,
         };
 
         print!("Connection established\n");
@@ -74,22 +98,15 @@ impl NetworkServer {
     pub fn run(&mut self) -> Result<i16, NetworkServerError> {
         print!("Starting server\n");
 
-        // Channel for relaying packets from network thread to processing thread
-        let (packets_to_process_tx, packets_to_process_rx) = mpsc::channel();
-
-        // Channel for relaying packets from network thread to processing thread
-        let (packets_to_send_tx, packets_to_send_rx) = mpsc::channel();
-
-        self.packets_to_process_tx = Some(packets_to_process_tx);
-        self.packets_to_send_tx = Some(packets_to_send_tx.clone()); // TODO: hack!
+        let mut packets_to_send_rx = self.node_config.bind_out_queue().unwrap();
 
         let clients = self.clients.clone();
-        let mut auth_manager = Arc::new(Mutex::new(AuthManager::new(packets_to_send_tx.clone())));
+        let mut auth_manager = Arc::new(Mutex::new(AuthManager::new(&self.node_config)));
         let am = auth_manager.clone();
 
         let packet_relaying_thread = thread::spawn(move || {
             loop {
-                let IpcMessage(user_id, packet_id, metadata, data) = packets_to_send_rx.recv().unwrap();
+                let IpcMessage(packet_id, user_id, metadata, data) = packets_to_send_rx.recv().unwrap();
 
                 let conv = match packet_id {
                     proto::PacketId::GetPlayerTokenRsp => user_id, // Mapping is not performed on those
@@ -115,7 +132,8 @@ impl NetworkServer {
         });
 
         let game_thread = thread::spawn(move || {
-            let mut gs = GameServer::new(packets_to_process_rx, packets_to_send_tx);
+            let node_config = NodeConfig::new();
+            let mut gs = GameServer::new(&node_config);
             gs.run();
         });
 
@@ -222,10 +240,10 @@ impl NetworkServer {
 
     fn send_packet_to_process(&mut self, user_id: u32, packet_id: u16, metadata: &[u8], data: &[u8])
     {
-        let sender = match &self.packets_to_process_tx {
-            Some(sender) => sender,
+        /*let sender: &mut PubSocket = match &self.packets_to_process_tx {
+            Some(mut sender) => &mut sender,
             None => panic!("Processing queue wasn't set up!"),
-        };
+        };*/
                 
         let packet_id: proto::PacketId = match FromPrimitive::from_u16(packet_id) {
             Some(packet_id) => packet_id,
@@ -236,6 +254,6 @@ impl NetworkServer {
         };
 
         println!("Got packet {:?}", packet_id);
-        sender.send( IpcMessage(user_id, packet_id, metadata.to_vec(), data.to_vec()) ).unwrap();
+        self.packets_to_process_tx.send( IpcMessage(packet_id, user_id, metadata.to_vec(), data.to_vec()) );
     }
 }

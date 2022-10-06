@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use prost::Message;
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use packet_processor_macro::*;
 #[macro_use]
@@ -17,20 +17,21 @@ use crate::utils::TimeManager;
 
 use crate::dbmanager::database_manager::AvatarInfo as DbAvatarInfo;
 use crate::entitymanager::EntityManager;
+use crate::node::NodeConfig;
 
 #[packet_processor(PlayerLoginReq)]
 pub struct LoginManager {
-    packets_to_send_tx: mpsc::Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     db: Arc<DatabaseManager>,
     jm: Arc<JsonManager>,
     em: Arc<EntityManager>,
 }
 
 impl LoginManager {
-    pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>, em: Arc<EntityManager>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> LoginManager {
+    pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>, em: Arc<EntityManager>, node_config: &NodeConfig) -> LoginManager {
         let mut lm = LoginManager {
             packet_callbacks: HashMap::new(),
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             db: db,
             jm: jm,
             em: em,
@@ -41,7 +42,7 @@ impl LoginManager {
         return lm;
     }
 
-    fn process_player_login(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::PlayerLoginReq, rsp: &mut proto::PlayerLoginRsp) {
+    fn process_player_login(&mut self, user_id: u32, metadata: &proto::PacketHead, req: &proto::PlayerLoginReq, rsp: &mut proto::PlayerLoginRsp) {
         let user = match self.db.get_player_info(user_id) {
             Some(user) => user,
             None => panic!("User {} not found!", user_id),

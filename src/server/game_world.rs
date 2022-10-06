@@ -7,7 +7,7 @@ use prost::Message;
 
 use chrono::Datelike;
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use crate::utils::{AvatarBuilder, Remapper};
 
@@ -40,13 +40,16 @@ macro_rules! collection {
     EnterWorldAreaReq,
 )]
 pub struct GameWorld {
-    packets_to_send_tx: mpsc::Sender<IpcMessage>,
+    //packets_to_send_tx: mpsc::Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     db: Arc<DatabaseManager>,
     jm: Arc<JsonManager>,
 }
 
 impl GameWorld {
-    pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>, packets_to_send_tx: mpsc::Sender<IpcMessage>) -> GameWorld {
+    pub fn new(db: Arc<DatabaseManager>, jm: Arc<JsonManager>/*, packets_to_send_tx: mpsc::Sender<IpcMessage>*/) -> GameWorld {
+        let mut packets_to_send_tx = PushSocket::connect_tcp("127.0.0.1", 9014).unwrap();
+
         let mut gw = GameWorld {
             packets_to_send_tx: packets_to_send_tx,
             db: db.clone(),
@@ -63,7 +66,7 @@ impl GameWorld {
         rsp.client_time = req.client_time;
     }
 
-    fn process_enter_scene_ready(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::EnterSceneReadyReq, rsp: &mut proto::EnterSceneReadyRsp) {
+    fn process_enter_scene_ready(&mut self, user_id: u32, metadata: &proto::PacketHead, req: &proto::EnterSceneReadyReq, rsp: &mut proto::EnterSceneReadyRsp) {
         rsp.enter_scene_token = req.enter_scene_token;
 
         let current_scene_info = match self.db.get_player_scene_info(user_id) {
@@ -79,7 +82,7 @@ impl GameWorld {
         });
     }
 
-    fn process_scene_init_finish(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::SceneInitFinishReq, rsp: &mut proto::SceneInitFinishRsp) {
+    fn process_scene_init_finish(&mut self, user_id: u32, metadata: &proto::PacketHead, req: &proto::SceneInitFinishReq, rsp: &mut proto::SceneInitFinishRsp) {
         let (current_avatar_guid, current_team_id) = match self.db.get_player_team_selection(user_id) {
             Some(team_selection) => (team_selection.avatar, team_selection.team),
             None => panic!("Team selection info not found for user {}!", user_id),
@@ -205,7 +208,7 @@ impl GameWorld {
         });
     }
 
-    fn process_enter_scene_done(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::EnterSceneDoneReq, rsp: &mut proto::EnterSceneDoneRsp) {
+    fn process_enter_scene_done(&mut self, user_id: u32, metadata: &proto::PacketHead, req: &proto::EnterSceneDoneReq, rsp: &mut proto::EnterSceneDoneRsp) {
         rsp.enter_scene_token = req.enter_scene_token;
 
         build_and_send!(self, user_id, metadata, SceneEntityAppearNotify {

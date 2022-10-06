@@ -3,7 +3,7 @@ use std::thread;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use prost::Message;
 
@@ -19,12 +19,13 @@ use crate::entitymanager::EntityManager;
 use crate::utils::{IdManager, TimeManager};
 
 use crate::luamanager::Vector;
+use crate::node::NodeConfig;
 
 #[packet_processor(
 CombatInvocationsNotify,
 )]
 pub struct EntitySubsystem {
-    packets_to_send_tx: Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     lua_manager: Arc<LuaManager>,
     json_manager: Arc<JsonManager>,
     db_manager: Arc<DatabaseManager>,
@@ -32,9 +33,9 @@ pub struct EntitySubsystem {
 }
 
 impl EntitySubsystem {
-    pub fn new(lua_manager: Arc<LuaManager>, json_manager: Arc<JsonManager>, db_manager: Arc<DatabaseManager>, entity_manager: Arc<EntityManager>, packets_to_send_tx: Sender<IpcMessage>) -> EntitySubsystem {
+    pub fn new(lua_manager: Arc<LuaManager>, json_manager: Arc<JsonManager>, db_manager: Arc<DatabaseManager>, entity_manager: Arc<EntityManager>, node_config: &NodeConfig) -> EntitySubsystem {
         let mut es = EntitySubsystem {
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             packet_callbacks: HashMap::new(),
             lua_manager: lua_manager,
             json_manager: json_manager,
@@ -47,7 +48,7 @@ impl EntitySubsystem {
         return es;
     }
 
-    fn process_combat_invocations(&self, user_id: u32, metadata: &proto::PacketHead, notify: &proto::CombatInvocationsNotify) {
+    fn process_combat_invocations(&mut self, user_id: u32, metadata: &proto::PacketHead, notify: &proto::CombatInvocationsNotify) {
         for invoke in notify.invoke_list.iter() {
             self.handle_invoke(user_id, metadata, invoke);
             self.forward_invoke(user_id, metadata, invoke);
@@ -117,7 +118,7 @@ impl EntitySubsystem {
      */
 
     // Main function
-    fn forward_invoke(&self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::CombatInvokeEntry) {
+    fn forward_invoke(&mut self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::CombatInvokeEntry) {
         match ForwardType::from_i32(invoke.forward_type).unwrap() { // Panics in case of unknown (undescribed in protobuf file) forward type
             ForwardType::ForwardLocal                 => self.fw_default(user_id, metadata, invoke),
             ForwardType::ForwardToAll                 => self.fw_to_all(user_id, metadata, invoke),
@@ -132,12 +133,12 @@ impl EntitySubsystem {
         }
     }
 
-    fn fw_default(&self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::CombatInvokeEntry) {
+    fn fw_default(&mut self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::CombatInvokeEntry) {
         // TODO: this handler is just a stub!
         println!("Unhandled CIN forward: {:?}", invoke);
     }
 
-    fn fw_to_all(&self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::CombatInvokeEntry) {
+    fn fw_to_all(&mut self, user_id: u32, metadata: &proto::PacketHead, invoke: &proto::CombatInvokeEntry) {
         // TODO: this handler sends data only back to the user itself for now!
         build_and_send!(self, user_id, metadata, CombatInvocationsNotify {
             invoke_list: vec![invoke.clone()],

@@ -3,7 +3,7 @@ use std::thread;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use prost::Message;
 
@@ -15,6 +15,7 @@ use packet_processor_macro::*;
 use packet_processor::*;
 use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
+use crate::node::NodeConfig;
 use crate::subsystems::InventorySubsystem;
 use crate::utils::{IdManager, TimeManager};
 
@@ -23,20 +24,20 @@ GetShopReq,
 BuyGoodsReq,
 )]
 pub struct ShopSubsystem {
-    packets_to_send_tx: Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     json_manager: Arc<JsonManager>,
     db_manager: Arc<DatabaseManager>,
-    inventory: Arc<InventorySubsystem>,
+    inventory: Mutex<InventorySubsystem>,
 }
 
 impl ShopSubsystem {
-    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, inv: Arc<InventorySubsystem>, packets_to_send_tx: Sender<IpcMessage>) -> Self {
+    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, inv: Mutex<InventorySubsystem>, node_config: &NodeConfig) -> Self {
         let mut ss = Self {
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             packet_callbacks: HashMap::new(),
             json_manager: jm.clone(),
             db_manager: db.clone(),
-            inventory: inv.clone(),
+            inventory: inv,
         };
 
         ss.register();
@@ -115,7 +116,7 @@ impl ShopSubsystem {
         }));
     }
 
-    fn process_buy_goods(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::BuyGoodsReq, rsp: &mut proto::BuyGoodsRsp) {
+    fn process_buy_goods(&mut self, user_id: u32, metadata: &proto::PacketHead, req: &proto::BuyGoodsReq, rsp: &mut proto::BuyGoodsRsp) {
         // Buying goods can produce the following packets:
         // 1) Response packet
         // 2) AddHintNotify (to show nice graphical image to user)
@@ -143,7 +144,7 @@ impl ShopSubsystem {
         let total_count = goods_item.count * req.buy_count;
 
         // Ok, now add item to user's inventory and show nice graphical hint
-        self.inventory.add_item(user_id, metadata, goods_item.item_id, total_count, &proto::ActionReasonType::ActionReasonShop, true);
+        self.inventory.lock().unwrap().add_item(user_id, metadata, goods_item.item_id, total_count, &proto::ActionReasonType::ActionReasonShop, true);
 
         // Tell the client to update / delete currency used
 

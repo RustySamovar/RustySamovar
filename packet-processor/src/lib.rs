@@ -16,7 +16,7 @@ macro_rules! register_callback {
 
             slef.$handler(user_id, &metadata, &req, &mut rsp);
 
-            let message = IpcMessage::new_from_proto(user_id, proto::PacketId::$rsp, metadata, &rsp);
+            let message = IpcMessage::new_from_proto(proto::PacketId::$rsp, user_id, metadata, &rsp);
             slef.packets_to_send_tx.send(message).unwrap();
         });
     };
@@ -36,8 +36,8 @@ macro_rules! build_and_send {
     ($self:ident, $user_id: ident, $metadata:ident, $id:ident { $($i:ident : $e:expr,)* }) => {{
         $self.packets_to_send_tx.send(
             IpcMessage::new_from_proto(
-                $user_id,
                 proto::PacketId::$id,
+                $user_id,
                 $metadata,
                 &proto::$id { $($i: $e,)* ..proto::$id::default() }
             )

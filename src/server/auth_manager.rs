@@ -8,28 +8,30 @@ use std::convert::TryInto;
 
 use prost::Message;
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use packet_processor_macro::*;
 #[macro_use]
 use packet_processor::*;
+use crate::node::NodeConfig;
 
 #[packet_processor(GetPlayerTokenReq)]
 pub struct AuthManager {
     conv_to_user: HashMap<u32, u32>,
     user_to_conv: HashMap<u32, u32>,
-    packets_to_send_tx: mpsc::Sender<IpcMessage>,
+    //packets_to_send_tx: mpsc::Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
 }
 
 impl AuthManager {
     pub const SPOOFED_PLAYER_UID: u32 = 1337;
 
-    pub fn new(packets_to_send_tx: mpsc::Sender<IpcMessage>) -> AuthManager {
+    pub fn new(node_config: &NodeConfig) -> AuthManager {
         let mut am = AuthManager {
             conv_to_user: HashMap::new(),
             user_to_conv: HashMap::new(),
             packet_callbacks: HashMap::new(),
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
         };
 
         am.register();

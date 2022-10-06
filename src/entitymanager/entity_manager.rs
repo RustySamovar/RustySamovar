@@ -3,7 +3,7 @@ use std::thread;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use prost::Message;
 
@@ -18,9 +18,10 @@ use crate::{DatabaseManager, JsonManager, LuaManager};
 use crate::utils::{IdManager, TimeManager};
 
 use crate::luamanager::Vector;
+use crate::node::NodeConfig;
 use super::entities::Entity;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Player {
     player_id: u32,
     pos: Vector,
@@ -30,7 +31,7 @@ struct Player {
     lua_manager: Arc<LuaManager>,
     json_manager: Arc<JsonManager>,
     db_manager: Arc<DatabaseManager>,
-    packets_to_send_tx: Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
 }
 
 impl Player {
@@ -38,7 +39,7 @@ impl Player {
     const SPAWN_DISTANCE: f32 = Self::DESPAWN_DISTANCE * 0.8;
     const RESPAWN_TIME: i32 = 10; // In seconds
 
-    pub fn despawn_everything(&self) {
+    pub fn despawn_everything(&mut self) {
         let entity_list: Vec<u32> = self.entities.iter().map(|(k, v)| *k).collect();
 
         if entity_list.len() > 0 {
@@ -118,7 +119,7 @@ impl Player {
         }
     }
 
-    pub fn enter_scene(&self, enter_type: &proto::EnterType, token: u32) {
+    pub fn enter_scene(&mut self, enter_type: &proto::EnterType, token: u32) {
         let world_level = self.db_manager.get_player_world_level(self.player_id).unwrap() as u32;
         let player_id = self.player_id;
 
@@ -153,7 +154,7 @@ impl Player {
 }
 
 pub struct EntityManager {
-    packets_to_send_tx: Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     players: Arc<Mutex<HashMap<u32, Player>>>,
     players_moved: Sender<u32>,
     lua_manager: Arc<LuaManager>,
@@ -162,11 +163,11 @@ pub struct EntityManager {
 }
 
 impl EntityManager {
-    pub fn new(lua_manager: Arc<LuaManager>, json_manager: Arc<JsonManager>, db_manager: Arc<DatabaseManager>, packets_to_send_tx: Sender<IpcMessage>) -> Self {
+    pub fn new(lua_manager: Arc<LuaManager>, json_manager: Arc<JsonManager>, db_manager: Arc<DatabaseManager>, node_config: &NodeConfig) -> Self {
         let (tx, rx): (Sender<u32>, Receiver<u32>) = mpsc::channel();
 
         let mut es = Self {
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             players_moved: tx,
             players: Arc::new(Mutex::new(HashMap::new())),
             lua_manager: lua_manager,
@@ -252,7 +253,7 @@ impl EntityManager {
                     player.enter_scene(reason, token);
                 },
                 Vacant(entry) => {
-                    let player = Player {
+                    let mut player = Player {
                         player_id: user_id,
                         pos: pos,
                         current_block: 0,
@@ -261,7 +262,7 @@ impl EntityManager {
                         lua_manager: self.lua_manager.clone(),
                         json_manager: self.json_manager.clone(),
                         db_manager: self.db_manager.clone(),
-                        packets_to_send_tx: self.packets_to_send_tx.clone(),
+                        packets_to_send_tx: NodeConfig::new().connect_out_queue().unwrap(),//self.packets_to_send_tx.clone(),
                     };
 
                     player.enter_scene(reason, token);

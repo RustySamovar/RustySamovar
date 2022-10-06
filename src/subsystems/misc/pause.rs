@@ -3,7 +3,7 @@ use std::thread;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use prost::Message;
 
@@ -15,19 +15,20 @@ use packet_processor_macro::*;
 use packet_processor::*;
 use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
+use crate::node::NodeConfig;
 use crate::utils::{IdManager, TimeManager};
 
 #[packet_processor(
 PlayerSetPauseReq,
 )]
 pub struct PauseSubsystem {
-    packets_to_send_tx: Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
 }
 
 impl PauseSubsystem {
-    pub fn new(packets_to_send_tx: Sender<IpcMessage>) -> Self {
+    pub fn new(node_config: &NodeConfig) -> Self {
         let mut ps = Self {
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             packet_callbacks: HashMap::new(),
         };
 

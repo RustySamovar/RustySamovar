@@ -3,7 +3,7 @@ use std::thread;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 
-use crate::server::IpcMessage;
+use rs_ipc::{IpcMessage, PushSocket};
 
 use prost::Message;
 
@@ -17,6 +17,7 @@ use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
 use crate::entitymanager::EntityManager;
 use crate::luamanager::Vector;
+use crate::node::NodeConfig;
 use crate::utils::{IdManager, TimeManager};
 
 #[packet_processor(
@@ -24,16 +25,16 @@ SceneTransToPointReq,
 UnlockTransPointReq,
 )]
 pub struct TeleportSubsystem {
-    packets_to_send_tx: Sender<IpcMessage>,
+    packets_to_send_tx: PushSocket,
     jm: Arc<JsonManager>,
     em: Arc<EntityManager>,
     db: Arc<DatabaseManager>
 }
 
 impl TeleportSubsystem {
-    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, em: Arc<EntityManager>, packets_to_send_tx: Sender<IpcMessage>) -> Self {
+    pub fn new(jm: Arc<JsonManager>, db: Arc<DatabaseManager>, em: Arc<EntityManager>, node_config: &NodeConfig) -> Self {
         let mut nt = Self {
-            packets_to_send_tx: packets_to_send_tx,
+            packets_to_send_tx: node_config.connect_out_queue().unwrap(),
             packet_callbacks: HashMap::new(),
             jm: jm,
             em: em,
@@ -77,7 +78,7 @@ impl TeleportSubsystem {
         self.em.player_teleported(user_id, pos, s_id, scene_info.scene_token, &proto::EnterType::EnterGoto);
     }
 
-    pub fn process_unlock_trans_point(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::UnlockTransPointReq, rsp: &mut proto::UnlockTransPointRsp) {
+    pub fn process_unlock_trans_point(&mut self, user_id: u32, metadata: &proto::PacketHead, req: &proto::UnlockTransPointReq, rsp: &mut proto::UnlockTransPointRsp) {
         let scene_id = req.scene_id;
         let point_id = req.point_id;
 
