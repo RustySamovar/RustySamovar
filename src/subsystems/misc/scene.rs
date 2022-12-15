@@ -43,7 +43,7 @@ impl SceneSubsystem {
     fn process_get_scene_area(&self, user_id: u32, metadata: &proto::PacketHead, req: &proto::GetSceneAreaReq, rsp: &mut proto::GetSceneAreaRsp) {
         rsp.scene_id = req.scene_id;
         // TODO: hardcoded data!
-        rsp.area_id_list = (1..20).collect();
+        rsp.area_id_list = (1..35).collect();
         rsp.city_info_list = vec![
             build!(CityInfo { city_id: 1, level: 10,}),
             build!(CityInfo { city_id: 2, level: 10,}),

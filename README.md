@@ -2,7 +2,7 @@ RustySamovar
 ===============================
 Custom server for YuanShen / Genshin Impact video game.
 
-Supported game versions: 1.4.5x - 3.1.5x (depends on protocol definitions provided and keys used)
+Supported game versions: 1.4.5x - 3.3.5x (depends on protocol definitions provided and keys used)
 
 **Note**: Github repo is a mirror of the main repo located at [Invisible Internet Bublik](http://bublik.i2p). 
 In case Github mirror dies, use I2P to access the main site.

@@ -50,7 +50,7 @@ impl AuthManager {
         rsp.secret_key_seed = seed; // TODO: temporary workaround!
         rsp.uid = uid;
 
-        if req.unk4 > 0 { // TODO: detect client version properly!
+        if req.key_id > 0 { // TODO: detect client version properly!
             // Versions 2.7.5x+ use different algorithm for key initialization
 
             // TODO: as of now (2022-05-16) this algorithm here is more of a PoC, because we can't really sign the data
@@ -68,7 +68,7 @@ impl AuthManager {
             // tool. While still possible, it's tiresome, and won't allow patched client to connect to official server without
             // switching back and forth between two versions of global-metadata.dat file.
 
-            let key_id = req.unk4 as u8;
+            let key_id = req.key_id as u8;
 
             let rsa_key_collection = mhycrypt::load_rsa_keys("RSAConfig", "keys");
             let keys = match rsa_key_collection.get(&key_id) {
@@ -78,7 +78,7 @@ impl AuthManager {
 
             // Decrypt received client seed
 
-            let client_seed_encrypted = base64::decode(&req.unk3).unwrap();
+            let client_seed_encrypted = base64::decode(&req.client_rand_key).unwrap();
 
             let mut dec_buf: Vec<u8> = vec![0; 256];
 
@@ -107,8 +107,9 @@ impl AuthManager {
             let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
             let signature = signer.sign_oneshot_to_vec(&seed_bytes).unwrap();
 
-            rsp.unk5 = base64::encode(&enc_buf);
-            rsp.unk6 = base64::encode(&signature);
+            rsp.key_id = key_id as u32;
+            rsp.server_rand_key = base64::encode(&enc_buf);
+            rsp.sign = base64::encode(&signature);
         }
 
         self.conv_to_user.insert(conv, uid);
