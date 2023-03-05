@@ -8,7 +8,7 @@ pub struct AvatarSkill {
     pub ability_name: String,
     pub desc_text_map_hash: u32,
     pub skill_icon: String,
-    pub cost_stamina: Option<u32>,
+    pub cost_stamina: Option<f32>,
     pub max_charge_num: u32,
     pub trigger_id: Option<u32>,
     pub lock_shape: String, // TODO: probably an enum

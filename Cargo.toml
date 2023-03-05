@@ -16,6 +16,7 @@ lua_serde = { path = "lua_serde" }
 packet-processor-macro = { path = "packet-processor-macro" }
 packet-processor = { path = "packet-processor" }
 rs-ipc = { path = "rs-ipc" }
+excel-hash-wrapper-macro = { path = "excel-hash-wrapper-macro" }
 
 prost = "0.8"
 bytes = "1.1.0"

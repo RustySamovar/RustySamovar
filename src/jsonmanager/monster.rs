@@ -60,7 +60,7 @@ pub struct Monster {
     pub exclude_weathers: String,
 
     #[serde(rename = "FeatureTagGroupID")]
-    pub feature_tag_group_id: u32,
+    pub feature_tag_group_id: Option<u32>,
     #[serde(rename = "MpPropID")]
     pub mp_prop_id: u32,
 
