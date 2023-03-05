@@ -103,13 +103,13 @@ impl AvatarBuilder {
                     proud_skill_extra_level_map: proud_skill_extra, //collection!{739 => 3, 732 => 3},
                     wearing_flycloak_id: 140001, // TODO: hack!
                     life_state: 1,
-                    excel_info: Some(build!(AvatarExcelInfo {
-                        prefab_path_hash: IdManager::get_hash_by_prefix_suffix(avatar.prefab_path_hash_pre, avatar.prefab_path_hash_suffix),
-                        prefab_path_remote_hash: IdManager::get_hash_by_prefix_suffix(avatar.prefab_path_remote_hash_pre, avatar.prefab_path_remote_hash_suffix),
-                        controller_path_hash: IdManager::get_hash_by_prefix_suffix(avatar.controller_path_hash_pre, avatar.controller_path_hash_suffix),
-                        controller_path_remote_hash: IdManager::get_hash_by_prefix_suffix(avatar.controller_path_remote_hash_pre, avatar.controller_path_remote_hash_suffix),
-                        combat_config_hash: IdManager::get_hash_by_prefix_suffix(avatar.combat_config_hash_pre, avatar.combat_config_hash_suffix),
-                    })),
+                    /*excel_info: Some(build!(AvatarExcelInfo {
+                        prefab_path_hash: avatar.get_prefab_path_hash(), //IdManager::get_hash_by_prefix_suffix(avatar.prefab_path_hash_pre, avatar.prefab_path_hash_suffix),
+                        prefab_path_remote_hash: avatar.get_prefab_path_remote_hash(), //IdManager::get_hash_by_prefix_suffix(avatar.prefab_path_remote_hash_pre, avatar.prefab_path_remote_hash_suffix),
+                        controller_path_hash: avatar.get_controller_path_hash(), //IdManager::get_hash_by_prefix_suffix(avatar.controller_path_hash_pre, avatar.controller_path_hash_suffix),
+                        controller_path_remote_hash: avatar.get_controller_path_remote_hash(), //IdManager::get_hash_by_prefix_suffix(avatar.controller_path_remote_hash_pre, avatar.controller_path_remote_hash_suffix),
+                        combat_config_hash: avatar.get_combat_config_hash(), //IdManager::get_hash_by_prefix_suffix(avatar.combat_config_hash_pre, avatar.combat_config_hash_suffix),
+                    })),*/
                 });
         return ai;
     }
