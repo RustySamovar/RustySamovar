@@ -22,7 +22,7 @@ use rs_ipc::{IpcMessage, PullSocket, PushSocket};
 
 use proto::PacketHead;
 use proto::GetPlayerTokenRsp;
-use proto::get_player_token_rsp;
+//use proto::get_player_token_rsp;
 
 use prost::Message;
 
