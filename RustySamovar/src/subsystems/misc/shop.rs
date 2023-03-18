@@ -15,9 +15,10 @@ use packet_processor_macro::*;
 use packet_processor::*;
 use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
-use crate::node::NodeConfig;
+use rs_nodeconf::NodeConfig;
 use crate::subsystems::InventorySubsystem;
-use crate::utils::{IdManager, TimeManager};
+use crate::utils::{IdManager};
+use rs_utils::TimeManager;
 
 #[packet_processor(
 GetShopReq,

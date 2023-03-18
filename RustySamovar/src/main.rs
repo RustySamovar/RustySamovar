@@ -7,7 +7,7 @@ extern crate num_derive;
 
 use std::thread;
 
-mod node;
+use rs_nodeconf::NodeConfig;
 
 mod server;
 mod utils;
@@ -18,12 +18,12 @@ mod entitymanager;
 
 mod subsystems;
 
-use server::NetworkServer;
 use dbmanager::DatabaseManager;
 use jsonmanager::JsonManager;
 use luamanager::LuaManager;
 use subsystems::EntitySubsystem;
 use entitymanager::EntityManager;
+use crate::server::GameServer;
 
 fn main() {
     //pretty_env_logger::init();
@@ -35,6 +35,8 @@ fn main() {
         .with_test_writer()
         .init();
 
-    let mut ns = NetworkServer::new("0.0.0.0", 4242).unwrap();
-    ns.run().expect("Failed to serve!");
+    let nc = NodeConfig::new();
+    let mut gs = GameServer::new(&nc);
+
+    gs.run();
 }

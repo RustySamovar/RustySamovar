@@ -13,11 +13,11 @@ use crate::{DatabaseManager, luamanager};
 use crate::JsonManager;
 
 use crate::utils::{AvatarBuilder, IdManager, Remapper};
-use crate::utils::TimeManager;
+use rs_utils::TimeManager;
 
 use crate::dbmanager::database_manager::AvatarInfo as DbAvatarInfo;
 use crate::entitymanager::EntityManager;
-use crate::node::NodeConfig;
+use rs_nodeconf::NodeConfig;
 
 #[packet_processor(PlayerLoginReq)]
 pub struct LoginManager {

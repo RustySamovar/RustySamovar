@@ -12,7 +12,6 @@ use crate::collection;
 use sea_orm::{entity::*, error::*, query::*, DbConn, FromQueryResult, Database};
 use sea_orm::entity::prelude::*;
 use crate::JsonManager;
-use crate::server::AuthManager;
 use crate::utils::IdManager;
 
 pub use super::player_info::Model as PlayerInfo;

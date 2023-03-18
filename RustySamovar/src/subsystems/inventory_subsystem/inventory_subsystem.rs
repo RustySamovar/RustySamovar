@@ -5,7 +5,7 @@ use crate::{DatabaseManager, JsonManager};
 
 #[macro_use]
 use packet_processor::*;
-use crate::node::NodeConfig;
+use rs_nodeconf::NodeConfig;
 
 pub struct InventorySubsystem {
     packets_to_send_tx: PushSocket,

@@ -14,7 +14,7 @@ use crate::LuaManager;
 use crate::server::LoginManager;
 use std::sync::Arc;
 use crate::entitymanager::EntityManager;
-use crate::node::NodeConfig;
+use rs_nodeconf::NodeConfig;
 use crate::subsystems::{InventorySubsystem, NpcSubsystem, ShopSubsystem};
 use crate::subsystems::misc::{PauseSubsystem, SceneSubsystem, SocialSubsystem, TeleportSubsystem};
 

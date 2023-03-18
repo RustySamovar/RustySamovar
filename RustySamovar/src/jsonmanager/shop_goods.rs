@@ -2,7 +2,7 @@ use chrono::NaiveDateTime;
 
 use serde::{Serialize, Deserialize};
 
-use crate::utils::TimeManager;
+use rs_utils::TimeManager;
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all="PascalCase")]

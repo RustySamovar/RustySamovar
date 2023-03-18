@@ -16,10 +16,11 @@ use packet_processor::*;
 use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
 use crate::entitymanager::EntityManager;
-use crate::utils::{IdManager, TimeManager};
+use crate::utils::{IdManager};
+use rs_utils::TimeManager;
 
 use crate::luamanager::Vector;
-use crate::node::NodeConfig;
+use rs_nodeconf::NodeConfig;
 
 #[packet_processor(
 CombatInvocationsNotify,

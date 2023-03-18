@@ -17,8 +17,9 @@ use serde_json::de::Read;
 use crate::{DatabaseManager, JsonManager, LuaManager};
 use crate::entitymanager::EntityManager;
 use crate::luamanager::Vector;
-use crate::node::NodeConfig;
-use crate::utils::{IdManager, TimeManager};
+use rs_nodeconf::NodeConfig;
+use crate::utils::{IdManager};
+use rs_utils::TimeManager;
 
 #[packet_processor(
 SceneTransToPointReq,
